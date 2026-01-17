@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,116 +6,181 @@ import {
   Animated,
   Dimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Clock, Compass, BookOpen, PenLine } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress';
 import { OnboardingButton } from '@/components/onboarding/OnboardingButton';
-import { FeatureItem } from '@/components/onboarding/FeatureItem';
+import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress';
+import { CrescentStar } from '@/components/IslamicPattern';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [fadeAnim] = useState(new Animated.Value(0));
-  const [slideAnim] = useState(new Animated.Value(30));
+
+  // Staggered entrance animations
+  const imageScale = useRef(new Animated.Value(1.1)).current;
+  const imageOpacity = useRef(new Animated.Value(0)).current;
+  const symbolOpacity = useRef(new Animated.Value(0)).current;
+  const symbolTranslate = useRef(new Animated.Value(-20)).current;
+  const arabicOpacity = useRef(new Animated.Value(0)).current;
+  const arabicTranslate = useRef(new Animated.Value(20)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+  const titleTranslate = useRef(new Animated.Value(30)).current;
+  const descriptionOpacity = useRef(new Animated.Value(0)).current;
+  const buttonOpacity = useRef(new Animated.Value(0)).current;
+  const buttonTranslate = useRef(new Animated.Value(40)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
+    // Orchestrated cinematic entrance
+    Animated.sequence([
+      // Image fade and subtle zoom
+      Animated.parallel([
+        Animated.timing(imageOpacity, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(imageScale, {
+          toValue: 1,
+          duration: 8000,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+
+    // Staggered content animations
+    Animated.stagger(150, [
+      // Symbol
+      Animated.parallel([
+        Animated.timing(symbolOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(symbolTranslate, { toValue: 0, duration: 600, useNativeDriver: true }),
+      ]),
+      // Arabic text
+      Animated.parallel([
+        Animated.timing(arabicOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(arabicTranslate, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]),
+      // Title
+      Animated.parallel([
+        Animated.timing(titleOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.timing(titleTranslate, { toValue: 0, duration: 600, useNativeDriver: true }),
+      ]),
+      // Description
+      Animated.timing(descriptionOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+      // Button
+      Animated.parallel([
+        Animated.timing(buttonOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.spring(buttonTranslate, { toValue: 0, friction: 8, tension: 40, useNativeDriver: true }),
+      ]),
     ]).start();
   }, []);
 
-  const handleGetStarted = () => {
-    router.push('/(onboarding)/location');
+  const handleContinue = () => {
+    router.push('/(onboarding)/features');
   };
 
   return (
     <View style={styles.container}>
+      {/* Background Image with Ken Burns effect */}
+      <Animated.View
+        style={[
+          styles.imageWrapper,
+          {
+            opacity: imageOpacity,
+            transform: [{ scale: imageScale }],
+          },
+        ]}
+      >
+        <Image
+          source={require('@/assets/images/onboarding/kaaba.png')}
+          style={styles.backgroundImage}
+          contentFit="cover"
+          transition={400}
+          placeholder={{ blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH' }}
+        />
+      </Animated.View>
+
+      {/* Gradient overlay */}
       <LinearGradient
-        colors={[Colors.light.primaryDark, Colors.light.primary, Colors.light.cream]}
-        locations={[0, 0.4, 1]}
-        style={StyleSheet.absoluteFill}
+        colors={[
+          'transparent',
+          'rgba(10, 16, 32, 0.3)',
+          'rgba(10, 16, 32, 0.7)',
+          'rgba(10, 16, 32, 0.95)',
+        ]}
+        locations={[0, 0.35, 0.6, 0.85]}
+        style={styles.gradient}
       />
 
-      <View style={[styles.content, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20 }]}>
-        {/* Header Section */}
+      {/* Content */}
+      <View style={[styles.content, { paddingBottom: insets.bottom + 24 }]}>
+        <View style={styles.spacer} />
+
+        {/* Text Content */}
+        <View style={styles.textContent}>
+          {/* Crescent symbol */}
+          <Animated.View
+            style={[
+              styles.symbolContainer,
+              {
+                opacity: symbolOpacity,
+                transform: [{ translateY: symbolTranslate }],
+              },
+            ]}
+          >
+            <CrescentStar size={44} color="#FDE68A" opacity={0.9} />
+          </Animated.View>
+
+          {/* Arabic Bismillah */}
+          <Animated.Text
+            style={[
+              styles.arabicText,
+              {
+                opacity: arabicOpacity,
+                transform: [{ translateY: arabicTranslate }],
+              },
+            ]}
+          >
+            بِسْمِ اللَّهِ
+          </Animated.Text>
+
+          {/* Title */}
+          <Animated.View
+            style={{
+              opacity: titleOpacity,
+              transform: [{ translateY: titleTranslate }],
+            }}
+          >
+            <Text style={styles.title}>Noor</Text>
+            <Text style={styles.subtitle}>Your spiritual companion</Text>
+          </Animated.View>
+
+          {/* Description */}
+          <Animated.Text style={[styles.description, { opacity: descriptionOpacity }]}>
+            Prayer times, Quran, and daily reflection{'\n'}to illuminate your path
+          </Animated.Text>
+        </View>
+
+        {/* Bottom Section */}
         <Animated.View
           style={[
-            styles.header,
+            styles.bottomSection,
             {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
+              opacity: buttonOpacity,
+              transform: [{ translateY: buttonTranslate }],
             },
           ]}
         >
-          {/* App Icon Placeholder */}
-          <View style={styles.iconContainer}>
-            <View style={styles.iconInner}>
-              <Text style={styles.iconText}>N</Text>
-            </View>
-            <View style={styles.iconGlow} />
-          </View>
-
-          <Text style={styles.bismillah}>بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ</Text>
-
-          <Text style={styles.title}>Welcome to</Text>
-          <Text style={styles.appName}>Noor</Text>
-          <Text style={styles.tagline}>Illuminate Your Spiritual Path</Text>
-        </Animated.View>
-
-        {/* Features Section */}
-        <Animated.View
-          style={[
-            styles.featuresContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
-          <FeatureItem
-            icon={Clock}
-            title="Accurate Prayer Times"
-            description="Location-based calculations for your city"
-          />
-          <FeatureItem
-            icon={Compass}
-            title="Qibla Direction"
-            description="Find the direction to Mecca instantly"
-          />
-          <FeatureItem
-            icon={BookOpen}
-            title="Daily Quran & Hadith"
-            description="Start each day with divine inspiration"
-          />
-          <FeatureItem
-            icon={PenLine}
-            title="Private Spiritual Journal"
-            description="Reflect and track your spiritual growth"
-          />
-        </Animated.View>
-
-        {/* Footer Section */}
-        <View style={styles.footer}>
           <OnboardingButton
             title="Get Started"
-            onPress={handleGetStarted}
+            onPress={handleContinue}
           />
-          <OnboardingProgress currentStep={0} totalSteps={5} />
-        </View>
+          <OnboardingProgress currentStep={0} totalSteps={16} />
+        </Animated.View>
       </View>
     </View>
   );
@@ -124,77 +189,61 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0A1020',
+  },
+  imageWrapper: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundImage: {
+    width: width,
+    height: height,
+  },
+  gradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
-    justifyContent: 'space-between',
+    paddingHorizontal: 32,
   },
-  header: {
-    alignItems: 'center',
+  spacer: {
+    flex: 0.45,
   },
-  iconContainer: {
+  textContent: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingBottom: 40,
+  },
+  symbolContainer: {
     marginBottom: 24,
-    position: 'relative',
   },
-  iconInner: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: Colors.light.ivory,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.light.gold,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  iconGlow: {
-    position: 'absolute',
-    top: -10,
-    left: -10,
-    right: -10,
-    bottom: -10,
-    borderRadius: 34,
-    backgroundColor: Colors.light.gold,
-    opacity: 0.15,
-    zIndex: -1,
-  },
-  iconText: {
-    fontSize: 40,
-    fontWeight: '700',
-    color: Colors.light.primary,
-  },
-  bismillah: {
-    fontSize: 20,
-    color: Colors.light.goldSoft,
-    fontWeight: '500',
-    marginBottom: 24,
-    textAlign: 'center',
+  arabicText: {
+    fontSize: 26,
+    color: 'rgba(253, 230, 138, 0.85)',
+    marginBottom: 20,
+    letterSpacing: 3,
+    fontWeight: '300',
   },
   title: {
-    fontSize: 18,
-    color: Colors.light.ivory,
-    fontWeight: '400',
-    opacity: 0.9,
-  },
-  appName: {
-    fontSize: 48,
-    color: Colors.light.ivory,
-    fontWeight: '700',
+    fontSize: 64,
+    fontWeight: '200',
+    color: '#FFFFFF',
+    letterSpacing: -2,
     marginBottom: 8,
   },
-  tagline: {
+  subtitle: {
+    fontSize: 18,
+    color: 'rgba(255, 255, 255, 0.55)',
+    fontWeight: '400',
+    letterSpacing: 1,
+    marginBottom: 28,
+  },
+  description: {
     fontSize: 16,
-    color: Colors.light.goldSoft,
-    fontWeight: '500',
-    fontStyle: 'italic',
+    color: 'rgba(255, 255, 255, 0.4)',
+    lineHeight: 26,
+    letterSpacing: 0.3,
   },
-  featuresContainer: {
-    marginTop: 32,
-  },
-  footer: {
-    marginTop: 'auto',
+  bottomSection: {
+    paddingTop: 20,
   },
 });

@@ -5,15 +5,20 @@ import {
   StyleSheet,
   Animated,
   Switch,
+  TouchableOpacity,
+  Dimensions,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bell, Sunrise, Sun, SunDim, Sunset, Moon, Clock } from 'lucide-react-native';
+import { Bell, Sunrise, Sun, SunDim, Sunset, Moon, Clock, ChevronRight } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress';
 import { OnboardingButton } from '@/components/onboarding/OnboardingButton';
 import { useOnboarding } from '@/providers/OnboardingProvider';
+
+const { width, height } = Dimensions.get('window');
 
 interface PrayerNotification {
   id: string;
@@ -32,11 +37,11 @@ const initialPrayers: PrayerNotification[] = [
 ];
 
 const reminderOptions = [
-  { value: 0, label: 'None' },
-  { value: 5, label: '5 min' },
-  { value: 10, label: '10 min' },
-  { value: 15, label: '15 min' },
-  { value: 30, label: '30 min' },
+  { value: 0, label: 'At time' },
+  { value: 5, label: '5 min before' },
+  { value: 10, label: '10 min before' },
+  { value: 15, label: '15 min before' },
+  { value: 30, label: '30 min before' },
 ];
 
 export default function NotificationsScreen() {
@@ -44,16 +49,33 @@ export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const { setNotificationSettings } = useOnboarding();
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(30));
+  const [imageAnim] = useState(new Animated.Value(0));
   const [prayers, setPrayers] = useState(initialPrayers);
   const [reminderTime, setReminderTime] = useState(15);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(imageAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        friction: 8,
+        tension: 40,
+        delay: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   const togglePrayer = (prayerId: string) => {
@@ -65,9 +87,6 @@ export default function NotificationsScreen() {
   const handleEnableNotifications = async () => {
     setLoading(true);
     try {
-      // Save notification preferences
-      // Note: In production, you would request notification permissions here
-      // using expo-notifications. For now, we just save the preferences.
       const enabledPrayers = prayers.filter((p) => p.enabled).map((p) => p.id);
       setNotificationSettings({
         enabled: true,
@@ -75,7 +94,6 @@ export default function NotificationsScreen() {
         reminderMinutes: reminderTime,
       });
 
-      // Small delay to show loading state
       await new Promise((resolve) => setTimeout(resolve, 500));
       router.push('/(onboarding)/ready');
     } catch (error) {
@@ -101,78 +119,123 @@ export default function NotificationsScreen() {
     setReminderTime(reminderOptions[nextIndex].value);
   };
 
+  const enabledCount = prayers.filter((p) => p.enabled).length;
+
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[Colors.light.primaryDark, Colors.light.primary, Colors.light.cream]}
-        locations={[0, 0.35, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      {/* Background Image */}
+      <Animated.View style={[styles.imageContainer, { opacity: imageAnim }]}>
+        <Image
+          source={require('@/assets/images/onboarding/mosque.png')}
+          style={styles.backgroundImage}
+          resizeMode="cover"
+        />
+        <LinearGradient
+          colors={[
+            'rgba(26, 54, 54, 0.4)',
+            'rgba(26, 54, 54, 0.7)',
+            'rgba(26, 54, 54, 0.95)',
+          ]}
+          locations={[0, 0.35, 0.7]}
+          style={styles.imageOverlay}
+        />
+      </Animated.View>
 
       <View style={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
-        {/* Illustration */}
-        <Animated.View style={[styles.illustrationContainer, { opacity: fadeAnim }]}>
-          <View style={styles.illustration}>
-            <View style={styles.bellContainer}>
-              <Bell size={48} color={Colors.light.gold} />
-              <View style={styles.bellRing} />
-            </View>
+        {/* Header */}
+        <Animated.View
+          style={[
+            styles.headerSection,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <View style={styles.iconCircle}>
+            <Bell size={28} color={Colors.light.gold} />
           </View>
+          <Text style={styles.title}>Stay Connected</Text>
+          <Text style={styles.subtitle}>
+            Receive gentle reminders for each prayer time
+          </Text>
         </Animated.View>
 
-        {/* Content */}
-        <Animated.View style={[styles.mainContent, { opacity: fadeAnim }]}>
-          <Text style={styles.title}>Never Miss a Prayer</Text>
-          <Text style={styles.subtitle}>
-            Get gentle reminders when it's time to pray:
-          </Text>
-
-          {/* Prayer Toggles */}
-          <View style={styles.prayersList}>
-            {prayers.map((prayer) => {
-              const Icon = prayer.icon;
-              return (
-                <View key={prayer.id} style={styles.prayerRow}>
-                  <View style={styles.prayerInfo}>
-                    <View style={[styles.prayerIcon, prayer.enabled && styles.prayerIconEnabled]}>
-                      <Icon size={18} color={prayer.enabled ? Colors.light.primary : Colors.light.textMuted} />
-                    </View>
-                    <View>
-                      <Text style={styles.prayerName}>{prayer.name}</Text>
-                      <Text style={styles.prayerArabic}>{prayer.nameArabic}</Text>
-                    </View>
-                  </View>
-                  <Switch
-                    value={prayer.enabled}
-                    onValueChange={() => togglePrayer(prayer.id)}
-                    trackColor={{
-                      false: Colors.light.border,
-                      true: Colors.light.primary + '60',
-                    }}
-                    thumbColor={prayer.enabled ? Colors.light.primary : Colors.light.surface}
-                    ios_backgroundColor={Colors.light.border}
-                  />
-                </View>
-              );
-            })}
+        {/* Prayer Toggles */}
+        <Animated.View
+          style={[
+            styles.prayersCard,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>Prayer Notifications</Text>
+            <Text style={styles.enabledBadge}>{enabledCount}/5 enabled</Text>
           </View>
 
-          {/* Reminder Time */}
-          <View style={styles.reminderCard}>
-            <View style={styles.reminderInfo}>
-              <Clock size={18} color={Colors.light.textSecondary} />
-              <Text style={styles.reminderLabel}>Also remind me</Text>
-            </View>
-            <View style={styles.reminderSelector}>
-              <Text
-                style={styles.reminderValue}
-                onPress={cycleReminderTime}
+          {prayers.map((prayer, index) => {
+            const Icon = prayer.icon;
+            const isLast = index === prayers.length - 1;
+            return (
+              <View
+                key={prayer.id}
+                style={[styles.prayerRow, !isLast && styles.prayerRowBorder]}
               >
-                {reminderOptions.find((o) => o.value === reminderTime)?.label}
-              </Text>
-              <Text style={styles.reminderSuffix}>before prayers</Text>
+                <View style={styles.prayerInfo}>
+                  <View style={[styles.prayerIcon, prayer.enabled && styles.prayerIconEnabled]}>
+                    <Icon size={18} color={prayer.enabled ? Colors.light.primary : Colors.light.textMuted} />
+                  </View>
+                  <View>
+                    <Text style={[styles.prayerName, !prayer.enabled && styles.prayerNameDisabled]}>
+                      {prayer.name}
+                    </Text>
+                    <Text style={styles.prayerArabic}>{prayer.nameArabic}</Text>
+                  </View>
+                </View>
+                <Switch
+                  value={prayer.enabled}
+                  onValueChange={() => togglePrayer(prayer.id)}
+                  trackColor={{
+                    false: Colors.light.border,
+                    true: Colors.light.primary + '60',
+                  }}
+                  thumbColor={prayer.enabled ? Colors.light.primary : Colors.light.surface}
+                  ios_backgroundColor={Colors.light.border}
+                />
+              </View>
+            );
+          })}
+        </Animated.View>
+
+        {/* Reminder Time Selector */}
+        <Animated.View
+          style={[
+            styles.reminderCard,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.reminderContent}
+            onPress={cycleReminderTime}
+            activeOpacity={0.7}
+          >
+            <View style={styles.reminderLeft}>
+              <Clock size={20} color={Colors.light.primary} />
+              <View style={styles.reminderTextContainer}>
+                <Text style={styles.reminderLabel}>Remind me</Text>
+                <Text style={styles.reminderValue}>
+                  {reminderOptions.find((o) => o.value === reminderTime)?.label}
+                </Text>
+              </View>
             </View>
-          </View>
+            <ChevronRight size={20} color={Colors.light.textMuted} />
+          </TouchableOpacity>
         </Animated.View>
 
         {/* Footer */}
@@ -183,12 +246,12 @@ export default function NotificationsScreen() {
             loading={loading}
           />
           <OnboardingButton
-            title="Skip for Now"
+            title="Maybe Later"
             onPress={handleSkip}
             variant="text"
-            style={{ marginTop: 8 }}
+            style={{ marginTop: 12 }}
           />
-          <OnboardingProgress currentStep={3} totalSteps={5} />
+          <OnboardingProgress currentStep={14} totalSteps={16} />
         </View>
       </View>
     </View>
@@ -198,62 +261,93 @@ export default function NotificationsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.light.primaryDark,
+  },
+  imageContainer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundImage: {
+    width: width,
+    height: height,
+  },
+  imageOverlay: {
+    ...StyleSheet.absoluteFillObject,
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
   },
-  illustrationContainer: {
+  headerSection: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
-  illustration: {
-    width: 100,
-    height: 100,
+  iconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 2,
+    borderColor: 'rgba(212, 175, 55, 0.4)',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  bellContainer: {
-    position: 'relative',
-  },
-  bellRing: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: Colors.light.gold,
-    opacity: 0.3,
-  },
-  mainContent: {
-    flex: 1,
+    marginBottom: 20,
   },
   title: {
-    fontSize: 26,
+    fontSize: 32,
     fontWeight: '700',
     color: Colors.light.ivory,
     textAlign: 'center',
     marginBottom: 8,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   subtitle: {
     fontSize: 15,
     color: Colors.light.goldSoft,
     textAlign: 'center',
-    marginBottom: 24,
+    lineHeight: 22,
   },
-  prayersList: {
+  prayersCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 16,
-    paddingVertical: 4,
+    borderRadius: 20,
+    overflow: 'hidden',
     marginBottom: 16,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  enabledBadge: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.primary,
+    backgroundColor: Colors.light.primary + '15',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   prayerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+  },
+  prayerRowBorder: {
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
   },
@@ -262,13 +356,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   prayerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     backgroundColor: Colors.light.cream,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 14,
   },
   prayerIconEnabled: {
     backgroundColor: Colors.light.primary + '15',
@@ -278,47 +372,45 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.light.text,
   },
-  prayerArabic: {
-    fontSize: 12,
+  prayerNameDisabled: {
     color: Colors.light.textMuted,
+  },
+  prayerArabic: {
+    fontSize: 13,
+    color: Colors.light.textMuted,
+    marginTop: 2,
   },
   reminderCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  reminderContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 16,
+    paddingHorizontal: 20,
   },
-  reminderInfo: {
+  reminderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  reminderTextContainer: {
+    marginLeft: 14,
   },
   reminderLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.light.textSecondary,
-    marginLeft: 10,
-  },
-  reminderSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   reminderValue: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '600',
     color: Colors.light.primary,
-    backgroundColor: Colors.light.primary + '15',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  reminderSuffix: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    marginLeft: 8,
+    marginTop: 2,
   },
   footer: {
     marginTop: 'auto',
+    paddingTop: 20,
   },
 });

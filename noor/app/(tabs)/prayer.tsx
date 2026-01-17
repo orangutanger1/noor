@@ -1,25 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Dimensions,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { 
-  MapPin, 
-  Clock, 
-  Sun, 
-  Sunrise, 
+import {
+  MapPin,
+  Clock,
+  Sun,
+  Sunrise,
   Sunset,
   Moon,
   CloudSun,
+  Navigation,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
-import Svg, { Circle, Line, G, Text as SvgText } from 'react-native-svg';
-import Colors from '@/constants/colors';
+import Svg, { Circle, Line, G, Text as SvgText, Defs, RadialGradient, Stop, Path } from 'react-native-svg';
+import Colors, { shadows } from '@/constants/colors';
+import { IslamicStar } from '@/components/IslamicPattern';
 
 const { width } = Dimensions.get('window');
 
@@ -30,6 +33,7 @@ interface PrayerTimeData {
   icon: React.ReactNode;
   isNext: boolean;
   isPast: boolean;
+  accentColor: string;
 }
 
 const calculateQiblaDirection = (lat: number, lon: number): number => {
@@ -56,12 +60,12 @@ const generatePrayerTimes = (): PrayerTimeData[] => {
   const currentTime = currentHour * 60 + currentMinute;
 
   const prayers = [
-    { name: 'Fajr', nameArabic: 'الفجر', hour: 5, minute: 23, icon: <Sunrise size={22} color={Colors.light.gold} /> },
-    { name: 'Sunrise', nameArabic: 'الشروق', hour: 6, minute: 48, icon: <Sun size={22} color={Colors.light.warning} /> },
-    { name: 'Dhuhr', nameArabic: 'الظهر', hour: 12, minute: 15, icon: <CloudSun size={22} color={Colors.light.primary} /> },
-    { name: 'Asr', nameArabic: 'العصر', hour: 15, minute: 45, icon: <Sun size={22} color={Colors.light.gold} /> },
-    { name: 'Maghrib', nameArabic: 'المغرب', hour: 18, minute: 32, icon: <Sunset size={22} color={Colors.light.warning} /> },
-    { name: 'Isha', nameArabic: 'العشاء', hour: 20, minute: 5, icon: <Moon size={22} color={Colors.light.primaryDark} /> },
+    { name: 'Fajr', nameArabic: 'الفجر', hour: 5, minute: 23, accentColor: '#F59E0B', iconComponent: Sunrise },
+    { name: 'Sunrise', nameArabic: 'الشروق', hour: 6, minute: 48, accentColor: '#FB923C', iconComponent: Sun },
+    { name: 'Dhuhr', nameArabic: 'الظهر', hour: 12, minute: 15, accentColor: '#047857', iconComponent: CloudSun },
+    { name: 'Asr', nameArabic: 'العصر', hour: 15, minute: 45, accentColor: '#D97706', iconComponent: Sun },
+    { name: 'Maghrib', nameArabic: 'المغرب', hour: 18, minute: 32, accentColor: '#EA580C', iconComponent: Sunset },
+    { name: 'Isha', nameArabic: 'العشاء', hour: 20, minute: 5, accentColor: '#1E293B', iconComponent: Moon },
   ];
 
   let foundNext = false;
@@ -71,13 +75,16 @@ const generatePrayerTimes = (): PrayerTimeData[] => {
     const isNext = !foundNext && !isPast;
     if (isNext) foundNext = true;
 
+    const IconComponent = prayer.iconComponent;
+
     return {
       name: prayer.name,
       nameArabic: prayer.nameArabic,
       time: `${prayer.hour.toString().padStart(2, '0')}:${prayer.minute.toString().padStart(2, '0')}`,
-      icon: prayer.icon,
+      icon: <IconComponent size={22} color={prayer.accentColor} />,
       isNext,
       isPast,
+      accentColor: prayer.accentColor,
     };
   });
 };
@@ -89,11 +96,37 @@ export default function PrayerScreen() {
   const [qiblaDirection, setQiblaDirection] = useState(0);
   const [prayerTimes, setPrayerTimes] = useState<PrayerTimeData[]>([]);
   const [timeToNext, setTimeToNext] = useState('');
-  
+
+  // Animations
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslate = useRef(new Animated.Value(20)).current;
+  const nextCardOpacity = useRef(new Animated.Value(0)).current;
+  const nextCardScale = useRef(new Animated.Value(0.95)).current;
+  const listOpacity = useRef(new Animated.Value(0)).current;
+  const listTranslate = useRef(new Animated.Value(30)).current;
+  const qiblaOpacity = useRef(new Animated.Value(0)).current;
+  const compassRotation = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     setPrayerTimes(generatePrayerTimes());
     getLocation();
+
+    // Orchestrated entrance animation
+    Animated.stagger(100, [
+      Animated.parallel([
+        Animated.timing(headerOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(headerTranslate, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(nextCardOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.spring(nextCardScale, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(listOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(listTranslate, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]),
+      Animated.timing(qiblaOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+    ]).start();
   }, []);
 
   const updateTimeToNext = useCallback(() => {
@@ -103,7 +136,7 @@ export default function PrayerScreen() {
       const now = new Date();
       const prayerDate = new Date();
       prayerDate.setHours(hours, minutes, 0);
-      
+
       const diff = prayerDate.getTime() - now.getTime();
       if (diff > 0) {
         const hoursLeft = Math.floor(diff / (1000 * 60 * 60));
@@ -141,11 +174,19 @@ export default function PrayerScreen() {
       const qibla = calculateQiblaDirection(loc.coords.latitude, loc.coords.longitude);
       setQiblaDirection(qibla);
 
+      // Animate compass rotation
+      Animated.spring(compassRotation, {
+        toValue: qibla,
+        friction: 10,
+        tension: 20,
+        useNativeDriver: true,
+      }).start();
+
       const [address] = await Location.reverseGeocodeAsync({
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
       });
-      
+
       if (address) {
         setLocationName(`${address.city || address.region}, ${address.country}`);
       }
@@ -158,168 +199,287 @@ export default function PrayerScreen() {
   };
 
   const QiblaCompass = () => {
-    const compassSize = width * 0.6;
+    const compassSize = width * 0.55;
     const center = compassSize / 2;
-    const radius = center - 20;
+    const radius = center - 24;
 
     return (
       <View style={styles.compassContainer}>
         <Svg width={compassSize} height={compassSize} viewBox={`0 0 ${compassSize} ${compassSize}`}>
+          <Defs>
+            <RadialGradient id="compassBg" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={1} />
+              <Stop offset="100%" stopColor="#F5F0E6" stopOpacity={1} />
+            </RadialGradient>
+            <RadialGradient id="compassGlow" cx="50%" cy="50%" r="50%">
+              <Stop offset="0%" stopColor="#D97706" stopOpacity={0.15} />
+              <Stop offset="100%" stopColor="#D97706" stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+
+          {/* Background glow */}
+          <Circle cx={center} cy={center} r={radius + 12} fill="url(#compassGlow)" />
+
+          {/* Main compass circle */}
+          <Circle cx={center} cy={center} r={radius} fill="url(#compassBg)" />
+
+          {/* Outer decorative ring */}
           <Circle
             cx={center}
             cy={center}
             r={radius}
-            fill="transparent"
+            fill="none"
             stroke={Colors.light.border}
             strokeWidth={2}
           />
+
+          {/* Inner dashed circle */}
           <Circle
             cx={center}
             cy={center}
-            r={radius - 15}
-            fill="transparent"
+            r={radius - 20}
+            fill="none"
             stroke={Colors.light.gold}
             strokeWidth={1}
-            strokeDasharray="4 4"
-            opacity={0.5}
+            strokeDasharray="6 4"
+            opacity={0.4}
           />
-          
-          {['N', 'E', 'S', 'W'].map((dir, i) => {
-            const angle = (i * 90 - 90) * Math.PI / 180;
-            const x = center + (radius - 35) * Math.cos(angle);
-            const y = center + (radius - 35) * Math.sin(angle);
+
+          {/* Cardinal directions */}
+          {[
+            { dir: 'N', angle: 0, highlight: true },
+            { dir: 'E', angle: 90, highlight: false },
+            { dir: 'S', angle: 180, highlight: false },
+            { dir: 'W', angle: 270, highlight: false },
+          ].map(({ dir, angle, highlight }) => {
+            const rad = ((angle - 90) * Math.PI) / 180;
+            const x = center + (radius - 40) * Math.cos(rad);
+            const y = center + (radius - 40) * Math.sin(rad);
             return (
               <SvgText
                 key={dir}
                 x={x}
                 y={y + 5}
-                fill={dir === 'N' ? Colors.light.primary : Colors.light.textMuted}
-                fontSize={14}
-                fontWeight={dir === 'N' ? 'bold' : 'normal'}
+                fill={highlight ? Colors.light.primary : Colors.light.textMuted}
+                fontSize={highlight ? 16 : 13}
+                fontWeight={highlight ? 'bold' : '500'}
                 textAnchor="middle"
               >
                 {dir}
               </SvgText>
             );
           })}
-          
+
+          {/* Degree markers */}
+          {Array.from({ length: 36 }).map((_, i) => {
+            const angle = i * 10;
+            const rad = ((angle - 90) * Math.PI) / 180;
+            const isCardinal = angle % 90 === 0;
+            const length = isCardinal ? 10 : 5;
+            const x1 = center + (radius - 4) * Math.cos(rad);
+            const y1 = center + (radius - 4) * Math.sin(rad);
+            const x2 = center + (radius - 4 - length) * Math.cos(rad);
+            const y2 = center + (radius - 4 - length) * Math.sin(rad);
+            return (
+              <Line
+                key={angle}
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                stroke={isCardinal ? Colors.light.textSecondary : Colors.light.border}
+                strokeWidth={isCardinal ? 2 : 1}
+              />
+            );
+          })}
+
+          {/* Qibla direction pointer */}
           <G rotation={qiblaDirection} origin={`${center}, ${center}`}>
+            {/* Pointer body */}
+            <Path
+              d={`M ${center} ${center - radius + 32}
+                  L ${center - 8} ${center - 20}
+                  L ${center} ${center - 30}
+                  L ${center + 8} ${center - 20} Z`}
+              fill={Colors.light.primary}
+            />
+            {/* Pointer stem */}
             <Line
               x1={center}
-              y1={center - radius + 30}
+              y1={center - 30}
               x2={center}
-              y2={center}
+              y2={center + 10}
               stroke={Colors.light.primary}
               strokeWidth={3}
               strokeLinecap="round"
             />
-            <Circle
-              cx={center}
-              cy={center - radius + 30}
-              r={8}
-              fill={Colors.light.primary}
-            />
+            {/* Kaaba indicator */}
+            <G>
+              <Circle cx={center} cy={center - radius + 32} r={10} fill={Colors.light.primaryDark} />
+              <Path
+                d={`M ${center - 5} ${center - radius + 30}
+                    L ${center + 5} ${center - radius + 30}
+                    L ${center + 5} ${center - radius + 38}
+                    L ${center - 5} ${center - radius + 38} Z`}
+                fill="#1F1B15"
+              />
+            </G>
           </G>
-          
-          <Circle cx={center} cy={center} r={6} fill={Colors.light.gold} />
+
+          {/* Center decoration */}
+          <Circle cx={center} cy={center} r={8} fill={Colors.light.gold} />
+          <Circle cx={center} cy={center} r={4} fill={Colors.light.surface} />
         </Svg>
-        
+
         <View style={styles.qiblaInfo}>
-          <Text style={styles.qiblaLabel}>Qibla Direction</Text>
+          <View style={styles.qiblaBadge}>
+            <Navigation size={14} color={Colors.light.primary} style={{ transform: [{ rotate: '45deg' }] }} />
+            <Text style={styles.qiblaLabel}>Qibla</Text>
+          </View>
           <Text style={styles.qiblaDegree}>{Math.round(qiblaDirection)}°</Text>
         </View>
       </View>
     );
   };
 
+  const nextPrayer = prayerTimes.find(p => p.isNext);
+
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[Colors.light.primary, Colors.light.primaryDark, Colors.light.cream]}
-        locations={[0, 0.25, 0.6]}
+        colors={['#047857', '#065F46', '#022C22', '#FAF8F3']}
+        locations={[0, 0.12, 0.28, 0.65]}
         style={StyleSheet.absoluteFill}
       />
-      
+
+      {/* Pattern overlay */}
+      <View style={styles.patternOverlay}>
+        <IslamicStar size={100} color="#FDE68A" opacity={0.04} />
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
+        {/* Header */}
+        <Animated.View
+          style={[
+            styles.header,
+            { opacity: headerOpacity, transform: [{ translateY: headerTranslate }] },
+          ]}
+        >
           <View style={styles.locationRow}>
-            <MapPin size={16} color={Colors.light.goldSoft} />
-            <Text style={styles.locationText}>{locationName}</Text>
+            <View style={styles.locationBadge}>
+              <MapPin size={14} color={Colors.light.goldSoft} />
+              <Text style={styles.locationText}>{locationName}</Text>
+            </View>
           </View>
           <Text style={styles.headerTitle}>Prayer Times</Text>
           <Text style={styles.headerArabic}>أوقات الصلاة</Text>
-        </View>
+        </Animated.View>
 
-        {prayerTimes.find(p => p.isNext) && (
-          <View style={styles.nextPrayerCard}>
-            <Text style={styles.nextLabel}>NEXT PRAYER</Text>
-            <Text style={styles.nextPrayerName}>
-              {prayerTimes.find(p => p.isNext)?.name}
-            </Text>
-            <Text style={styles.nextPrayerTime}>
-              {prayerTimes.find(p => p.isNext)?.time}
-            </Text>
-            <View style={styles.countdownContainer}>
-              <Clock size={16} color={Colors.light.gold} />
-              <Text style={styles.countdownText}>{timeToNext} remaining</Text>
-            </View>
-          </View>
+        {/* Next Prayer Card */}
+        {nextPrayer && (
+          <Animated.View
+            style={[
+              styles.nextPrayerCard,
+              shadows.xl,
+              { opacity: nextCardOpacity, transform: [{ scale: nextCardScale }] },
+            ]}
+          >
+            <LinearGradient
+              colors={['#FFFFFF', '#FDFCF9']}
+              style={styles.nextPrayerGradient}
+            >
+              <View style={styles.nextPrayerHeader}>
+                <View style={[styles.nextPrayerIconContainer, { backgroundColor: nextPrayer.accentColor + '15' }]}>
+                  {nextPrayer.icon}
+                </View>
+                <View style={styles.nextBadge}>
+                  <Text style={styles.nextLabel}>NEXT</Text>
+                </View>
+              </View>
+
+              <Text style={styles.nextPrayerName}>{nextPrayer.name}</Text>
+              <Text style={styles.nextPrayerArabic}>{nextPrayer.nameArabic}</Text>
+
+              <Text style={styles.nextPrayerTime}>{nextPrayer.time}</Text>
+
+              <View style={styles.countdownContainer}>
+                <Clock size={14} color={Colors.light.gold} />
+                <Text style={styles.countdownText}>{timeToNext} remaining</Text>
+              </View>
+            </LinearGradient>
+          </Animated.View>
         )}
 
-        <View style={styles.prayerList}>
+        {/* Prayer Times List */}
+        <Animated.View
+          style={[
+            styles.prayerList,
+            shadows.lg,
+            { opacity: listOpacity, transform: [{ translateY: listTranslate }] },
+          ]}
+        >
           {prayerTimes.map((prayer, index) => (
             <View
               key={prayer.name}
               style={[
                 styles.prayerItem,
                 prayer.isNext && styles.prayerItemNext,
-                prayer.isPast && styles.prayerItemPast,
+                index === prayerTimes.length - 1 && styles.prayerItemLast,
               ]}
             >
               <View style={styles.prayerLeft}>
-                <View style={[
-                  styles.iconContainer,
-                  prayer.isNext && styles.iconContainerNext,
-                ]}>
+                <View
+                  style={[
+                    styles.iconContainer,
+                    { backgroundColor: prayer.accentColor + '12' },
+                    prayer.isPast && styles.iconContainerPast,
+                  ]}
+                >
                   {prayer.icon}
                 </View>
                 <View>
-                  <Text style={[
-                    styles.prayerName,
-                    prayer.isPast && styles.prayerNamePast,
-                  ]}>
+                  <Text
+                    style={[
+                      styles.prayerName,
+                      prayer.isPast && styles.prayerNamePast,
+                      prayer.isNext && styles.prayerNameNext,
+                    ]}
+                  >
                     {prayer.name}
                   </Text>
                   <Text style={styles.prayerNameArabic}>{prayer.nameArabic}</Text>
                 </View>
               </View>
               <View style={styles.prayerRight}>
-                <Text style={[
-                  styles.prayerTime,
-                  prayer.isNext && styles.prayerTimeNext,
-                  prayer.isPast && styles.prayerTimePast,
-                ]}>
+                <Text
+                  style={[
+                    styles.prayerTime,
+                    prayer.isNext && styles.prayerTimeNext,
+                    prayer.isPast && styles.prayerTimePast,
+                  ]}
+                >
                   {prayer.time}
                 </Text>
                 {prayer.isNext && (
-                  <View style={styles.nextBadge}>
-                    <Text style={styles.nextBadgeText}>NEXT</Text>
-                  </View>
+                  <View style={styles.activeDot} />
                 )}
               </View>
             </View>
           ))}
-        </View>
+        </Animated.View>
 
-        <View style={styles.qiblaSection}>
-          <Text style={styles.sectionTitle}>Qibla Compass</Text>
-          <Text style={styles.sectionSubtitle}>Face this direction for prayer</Text>
+        {/* Qibla Section */}
+        <Animated.View style={[styles.qiblaSection, shadows.lg, { opacity: qiblaOpacity }]}>
+          <View style={styles.qiblaSectionHeader}>
+            <Text style={styles.sectionTitle}>Qibla Direction</Text>
+            <Text style={styles.sectionSubtitle}>Face this direction for prayer</Text>
+          </View>
           <QiblaCompass />
-        </View>
+        </Animated.View>
       </ScrollView>
     </View>
   );
@@ -328,7 +488,12 @@ export default function PrayerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.cream,
+    backgroundColor: Colors.light.background,
+  },
+  patternOverlay: {
+    position: 'absolute',
+    top: 40,
+    right: -30,
   },
   scrollView: {
     flex: 1,
@@ -338,13 +503,19 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   locationRow: {
+    marginBottom: 12,
+  },
+  locationBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginBottom: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   locationText: {
     fontSize: 13,
@@ -352,10 +523,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors.light.ivory,
+    fontSize: 32,
+    fontWeight: '300',
+    color: '#FDFCF9',
     marginBottom: 4,
+    letterSpacing: -0.5,
   },
   headerArabic: {
     fontSize: 18,
@@ -363,91 +535,106 @@ const styles = StyleSheet.create({
     opacity: 0.9,
   },
   nextPrayerCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 20,
-    padding: 24,
+    borderRadius: 28,
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  nextPrayerGradient: {
+    padding: 28,
     alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: Colors.light.primaryDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
+  },
+  nextPrayerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  nextPrayerIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  nextBadge: {
+    backgroundColor: Colors.light.gold,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   nextLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.light.gold,
-    letterSpacing: 2,
-    marginBottom: 8,
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 1.5,
   },
   nextPrayerName: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: Colors.light.primary,
-    marginBottom: 4,
+    fontSize: 28,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  nextPrayerArabic: {
+    fontSize: 16,
+    color: Colors.light.textMuted,
+    marginBottom: 8,
   },
   nextPrayerTime: {
-    fontSize: 48,
-    fontWeight: '300',
+    fontSize: 56,
+    fontWeight: '200',
     color: Colors.light.text,
-    marginBottom: 12,
+    letterSpacing: -2,
+    marginBottom: 16,
   },
   countdownContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.light.cream,
+    backgroundColor: Colors.light.goldMuted,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
   },
   countdownText: {
     fontSize: 14,
-    color: Colors.light.textSecondary,
-    fontWeight: '500',
+    color: Colors.light.textGold,
+    fontWeight: '600',
   },
   prayerList: {
-    backgroundColor: Colors.light.ivory,
-    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
     overflow: 'hidden',
     marginBottom: 24,
-    shadowColor: Colors.light.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
   },
   prayerItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 18,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
+    borderBottomColor: Colors.light.borderLight,
   },
   prayerItemNext: {
-    backgroundColor: Colors.light.primary + '10',
+    backgroundColor: Colors.light.goldMuted + '40',
   },
-  prayerItemPast: {
-    opacity: 0.6,
+  prayerItemLast: {
+    borderBottomWidth: 0,
   },
   prayerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
+    gap: 16,
   },
   iconContainer: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: Colors.light.cream,
+    width: 48,
+    height: 48,
+    borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  iconContainerNext: {
-    backgroundColor: Colors.light.primary + '20',
+  iconContainerPast: {
+    opacity: 0.5,
   },
   prayerName: {
     fontSize: 16,
@@ -458,74 +645,84 @@ const styles = StyleSheet.create({
   prayerNamePast: {
     color: Colors.light.textMuted,
   },
+  prayerNameNext: {
+    color: Colors.light.text,
+  },
   prayerNameArabic: {
     fontSize: 13,
     color: Colors.light.textMuted,
   },
   prayerRight: {
     alignItems: 'flex-end',
+    flexDirection: 'row',
+    gap: 12,
   },
   prayerTime: {
     fontSize: 18,
-    fontWeight: '600',
-    color: Colors.light.text,
+    fontWeight: '500',
+    color: Colors.light.textSecondary,
+    fontVariant: ['tabular-nums'],
   },
   prayerTimeNext: {
-    color: Colors.light.primary,
+    fontWeight: '700',
+    color: Colors.light.text,
   },
   prayerTimePast: {
     color: Colors.light.textMuted,
   },
-  nextBadge: {
-    backgroundColor: Colors.light.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    marginTop: 4,
-  },
-  nextBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: Colors.light.ivory,
-    letterSpacing: 1,
+  activeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.light.gold,
   },
   qiblaSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    padding: 28,
     alignItems: 'center',
-    backgroundColor: Colors.light.ivory,
-    borderRadius: 20,
-    padding: 24,
-    shadowColor: Colors.light.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+  },
+  qiblaSectionHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '700',
+    fontWeight: '600',
     color: Colors.light.text,
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 14,
     color: Colors.light.textMuted,
-    marginBottom: 20,
   },
   compassContainer: {
     alignItems: 'center',
   },
   qiblaInfo: {
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 20,
+  },
+  qiblaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.light.surfaceSubdued,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginBottom: 8,
   },
   qiblaLabel: {
-    fontSize: 13,
-    color: Colors.light.textMuted,
-    marginBottom: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.primary,
+    letterSpacing: 0.5,
   },
   qiblaDegree: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.light.primary,
+    fontSize: 32,
+    fontWeight: '300',
+    color: Colors.light.text,
+    letterSpacing: -1,
   },
 });

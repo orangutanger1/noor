@@ -4,25 +4,32 @@ import {
   Text,
   StyleSheet,
   Animated,
+  Dimensions,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MapPin, Calculator, Clock } from 'lucide-react-native';
+import { MapPin, Calculator, Clock, Sparkles, Check } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress';
 import { OnboardingButton } from '@/components/onboarding/OnboardingButton';
 import { useOnboarding } from '@/providers/OnboardingProvider';
 
+const { width, height } = Dimensions.get('window');
+
 export default function ReadyScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { locationData, calculationMethod, completeOnboarding } = useOnboarding();
+  const { locationData, calculationMethod, completeOnboarding, userProfile } = useOnboarding();
+  const firstName = userProfile.name ? userProfile.name.split(' ')[0] : '';
   const [fadeAnim] = useState(new Animated.Value(0));
-  const [scaleAnim] = useState(new Animated.Value(0.8));
+  const [slideAnim] = useState(new Animated.Value(40));
+  const [imageAnim] = useState(new Animated.Value(0));
+  const [scaleAnim] = useState(new Animated.Value(0.9));
+  const [checkAnim] = useState(new Animated.Value(0));
   const [loading, setLoading] = useState(false);
 
-  // Mock next prayer time - in a real app this would be calculated
   const [nextPrayer] = useState({
     name: 'Maghrib',
     time: '18:32',
@@ -30,16 +37,37 @@ export default function ReadyScreen() {
   });
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(imageAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.spring(checkAnim, {
         toValue: 1,
         friction: 6,
-        tension: 40,
+        tension: 50,
         useNativeDriver: true,
       }),
     ]).start();
@@ -59,7 +87,6 @@ export default function ReadyScreen() {
     setLoading(true);
     try {
       await completeOnboarding();
-      // Navigate to main app and reset navigation stack
       router.replace('/(tabs)');
     } catch (error) {
       console.log('Error completing onboarding:', error);
@@ -71,71 +98,139 @@ export default function ReadyScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[Colors.light.primaryDark, Colors.light.primary, Colors.light.cream]}
-        locations={[0, 0.4, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      {/* Background Image */}
+      <Animated.View
+        style={[
+          styles.imageContainer,
+          {
+            opacity: imageAnim,
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      >
+        <Image
+          source={require('@/assets/images/onboarding/kaaba.png')}
+          style={styles.backgroundImage}
+          resizeMode="cover"
+        />
+        <LinearGradient
+          colors={[
+            'rgba(26, 54, 54, 0.3)',
+            'rgba(26, 54, 54, 0.6)',
+            'rgba(26, 54, 54, 0.95)',
+          ]}
+          locations={[0, 0.45, 0.8]}
+          style={styles.imageOverlay}
+        />
+      </Animated.View>
 
-      <View style={[styles.content, { paddingTop: insets.top + 40, paddingBottom: insets.bottom + 20 }]}>
-        {/* Success Animation */}
+      <View style={[styles.content, { paddingTop: insets.top + 30, paddingBottom: insets.bottom + 20 }]}>
+        {/* Success Badge */}
         <Animated.View
           style={[
-            styles.illustrationContainer,
+            styles.successBadge,
             {
               opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
+              transform: [
+                { translateY: slideAnim },
+                { scale: checkAnim },
+              ],
             },
           ]}
         >
-          <View style={styles.successIcon}>
-            <View style={styles.iconGlow1} />
-            <View style={styles.iconGlow2} />
-            <View style={styles.iconInner}>
-              <Text style={styles.iconText}>N</Text>
-            </View>
+          <View style={styles.checkCircle}>
+            <Check size={28} color={Colors.light.ivory} strokeWidth={3} />
           </View>
         </Animated.View>
 
         {/* Title */}
-        <Animated.View style={[styles.titleContainer, { opacity: fadeAnim }]}>
-          <Text style={styles.title}>You're All Set!</Text>
+        <Animated.View
+          style={[
+            styles.titleContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <Text style={styles.title}>{firstName ? `${firstName}, You're All Set!` : "You're All Set!"}</Text>
+          <Text style={styles.subtitle}>Your spiritual journey awaits</Text>
         </Animated.View>
 
         {/* Prayer Preview Card */}
-        <Animated.View style={[styles.prayerCard, { opacity: fadeAnim }]}>
-          <Text style={styles.prayerCardLabel}>Your next prayer:</Text>
-          <Text style={styles.prayerName}>{nextPrayer.name}</Text>
-          <Text style={styles.prayerTime}>{nextPrayer.time}</Text>
-          <View style={styles.remainingBadge}>
-            <Clock size={14} color={Colors.light.primary} />
-            <Text style={styles.remainingText}>in {nextPrayer.remaining}</Text>
+        <Animated.View
+          style={[
+            styles.prayerCard,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <View style={styles.prayerCardInner}>
+            <View style={styles.sparkleRow}>
+              <Sparkles size={16} color={Colors.light.gold} />
+              <Text style={styles.prayerCardLabel}>Your next prayer</Text>
+              <Sparkles size={16} color={Colors.light.gold} />
+            </View>
+            <Text style={styles.prayerName}>{nextPrayer.name}</Text>
+            <Text style={styles.prayerTime}>{nextPrayer.time}</Text>
+            <View style={styles.remainingBadge}>
+              <Clock size={14} color={Colors.light.primary} />
+              <Text style={styles.remainingText}>in {nextPrayer.remaining}</Text>
+            </View>
           </View>
         </Animated.View>
 
         {/* Settings Summary */}
-        <Animated.View style={[styles.summaryContainer, { opacity: fadeAnim }]}>
-          <View style={styles.summaryItem}>
-            <MapPin size={16} color={Colors.light.goldSoft} />
-            <Text style={styles.summaryText}>
-              {locationData?.cityName || 'Location set'}
-            </Text>
+        <Animated.View
+          style={[
+            styles.summaryCard,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryIcon}>
+              <MapPin size={16} color={Colors.light.primary} />
+            </View>
+            <View style={styles.summaryTextContainer}>
+              <Text style={styles.summaryLabel}>Location</Text>
+              <Text style={styles.summaryValue}>
+                {locationData?.cityName || 'Location set'}
+              </Text>
+            </View>
           </View>
-          <View style={styles.summaryDot} />
-          <View style={styles.summaryItem}>
-            <Calculator size={16} color={Colors.light.goldSoft} />
-            <Text style={styles.summaryText}>
-              {getMethodName(calculationMethod)}
-            </Text>
+          <View style={styles.summaryDivider} />
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryIcon}>
+              <Calculator size={16} color={Colors.light.primary} />
+            </View>
+            <View style={styles.summaryTextContainer}>
+              <Text style={styles.summaryLabel}>Calculation Method</Text>
+              <Text style={styles.summaryValue}>
+                {getMethodName(calculationMethod)}
+              </Text>
+            </View>
           </View>
         </Animated.View>
 
         {/* Quote */}
-        <Animated.View style={[styles.quoteContainer, { opacity: fadeAnim }]}>
+        <Animated.View
+          style={[
+            styles.quoteContainer,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
           <Text style={styles.quoteText}>
             "And those who strive for Us - We will surely guide them to Our ways."
           </Text>
-          <Text style={styles.quoteSource}>— Quran 29:69</Text>
+          <Text style={styles.quoteSource}>Quran 29:69</Text>
         </Animated.View>
 
         {/* Footer */}
@@ -145,7 +240,7 @@ export default function ReadyScreen() {
             onPress={handleStart}
             loading={loading}
           />
-          <OnboardingProgress currentStep={4} totalSteps={5} />
+          <OnboardingProgress currentStep={15} totalSteps={16} />
         </View>
       </View>
     </View>
@@ -155,136 +250,156 @@ export default function ReadyScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.light.primaryDark,
+  },
+  imageContainer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundImage: {
+    width: width,
+    height: height,
+  },
+  imageOverlay: {
+    ...StyleSheet.absoluteFillObject,
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
     alignItems: 'center',
   },
-  illustrationContainer: {
-    marginBottom: 24,
+  successBadge: {
+    marginBottom: 20,
   },
-  successIcon: {
-    width: 100,
-    height: 100,
-    position: 'relative',
+  checkCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.light.success,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  iconGlow1: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.light.gold,
-    opacity: 0.1,
-  },
-  iconGlow2: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: Colors.light.gold,
-    opacity: 0.05,
-  },
-  iconInner: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    backgroundColor: Colors.light.ivory,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.light.gold,
+    shadowColor: Colors.light.success,
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  iconText: {
-    fontSize: 40,
-    fontWeight: '700',
-    color: Colors.light.primary,
+    shadowRadius: 16,
+    elevation: 8,
   },
   titleContainer: {
+    alignItems: 'center',
     marginBottom: 24,
   },
   title: {
-    fontSize: 32,
+    fontSize: 36,
     fontWeight: '700',
     color: Colors.light.ivory,
     textAlign: 'center',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: Colors.light.goldSoft,
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   prayerCard: {
+    width: '100%',
+    maxWidth: 300,
+    marginBottom: 20,
+  },
+  prayerCardInner: {
     backgroundColor: Colors.light.ivory,
-    borderRadius: 20,
+    borderRadius: 24,
     padding: 24,
     alignItems: 'center',
-    width: '100%',
-    maxWidth: 280,
     shadowColor: Colors.light.primaryDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 8,
-    marginBottom: 20,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 10,
+  },
+  sparkleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
   prayerCardLabel: {
     fontSize: 13,
     color: Colors.light.textSecondary,
-    marginBottom: 8,
+    marginHorizontal: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   prayerName: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '700',
     color: Colors.light.primary,
     marginBottom: 4,
   },
   prayerTime: {
-    fontSize: 36,
+    fontSize: 44,
     fontWeight: '300',
     color: Colors.light.text,
-    marginBottom: 12,
+    marginBottom: 16,
   },
   remainingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.light.primary + '15',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
   },
   remainingText: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
     color: Colors.light.primary,
-    marginLeft: 6,
+    marginLeft: 8,
   },
-  summaryContainer: {
+  summaryCard: {
+    width: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    marginBottom: 20,
+  },
+  summaryRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+  },
+  summaryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginRight: 12,
   },
-  summaryItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  summaryTextContainer: {
+    flex: 1,
   },
-  summaryText: {
-    fontSize: 13,
+  summaryLabel: {
+    fontSize: 12,
     color: Colors.light.goldSoft,
-    marginLeft: 6,
+    opacity: 0.8,
   },
-  summaryDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.light.goldSoft,
-    opacity: 0.5,
-    marginHorizontal: 12,
+  summaryValue: {
+    fontSize: 15,
+    color: Colors.light.ivory,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  summaryDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    marginVertical: 12,
   },
   quoteContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
+    paddingHorizontal: 16,
+    marginBottom: 16,
   },
   quoteText: {
     fontSize: 15,
@@ -296,13 +411,14 @@ const styles = StyleSheet.create({
   },
   quoteSource: {
     fontSize: 13,
-    color: Colors.light.goldSoft,
+    color: Colors.light.gold,
     textAlign: 'center',
-    marginTop: 8,
-    fontWeight: '500',
+    marginTop: 10,
+    fontWeight: '600',
   },
   footer: {
     marginTop: 'auto',
     width: '100%',
+    paddingTop: 16,
   },
 });

@@ -9,16 +9,17 @@ import {
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { RotateCcw, Check, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { RotateCcw, Check, ChevronDown, ChevronUp, Sparkles } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import Svg, { Circle } from 'react-native-svg';
-import Colors from '@/constants/colors';
+import Svg, { Circle, Defs, RadialGradient, Stop, G } from 'react-native-svg';
+import Colors, { shadows } from '@/constants/colors';
 import { tasbihPresets } from '@/mocks/islamic-content';
 import { useApp } from '@/providers/AppProvider';
+import { IslamicStar, CrescentStar } from '@/components/IslamicPattern';
 
 const { width } = Dimensions.get('window');
-const COUNTER_SIZE = width * 0.7;
+const COUNTER_SIZE = width * 0.72;
 
 export default function TasbihScreen() {
   const insets = useSafeAreaInsets();
@@ -27,33 +28,76 @@ export default function TasbihScreen() {
   const [selectedPreset, setSelectedPreset] = useState(tasbihPresets[0]);
   const [showPresets, setShowPresets] = useState(false);
   const [customTarget] = useState(99);
+
+  // Animations
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
   const glowAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslate = useRef(new Animated.Value(20)).current;
+  const counterOpacity = useRef(new Animated.Value(0)).current;
+  const counterScale = useRef(new Animated.Value(0.9)).current;
 
   const target = selectedPreset.id === '6' ? customTarget : selectedPreset.target;
   const progress = Math.min(count / target, 1);
 
   useEffect(() => {
-    Animated.timing(progressAnim, {
+    // Entrance animations
+    Animated.stagger(100, [
+      Animated.parallel([
+        Animated.timing(headerOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
+        Animated.timing(headerTranslate, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.timing(counterOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.spring(counterScale, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true }),
+      ]),
+    ]).start();
+
+    // Subtle breathing animation for the counter
+    const breathingAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.02,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    breathingAnimation.start();
+
+    return () => breathingAnimation.stop();
+  }, []);
+
+  useEffect(() => {
+    Animated.spring(progressAnim, {
       toValue: progress,
-      duration: 200,
+      friction: 10,
+      tension: 40,
       useNativeDriver: false,
     }).start();
-  }, [progress, progressAnim]);
+  }, [progress]);
 
   const handleCount = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
+
+    // Tap feedback animation
     Animated.sequence([
       Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 50,
+        toValue: 0.96,
+        duration: 60,
         useNativeDriver: true,
       }),
-      Animated.timing(scaleAnim, {
+      Animated.spring(scaleAnim, {
         toValue: 1,
-        duration: 100,
+        friction: 5,
+        tension: 100,
         useNativeDriver: true,
       }),
     ]).start();
@@ -62,19 +106,21 @@ export default function TasbihScreen() {
       const newCount = prev + 1;
       if (newCount === target) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+        // Completion glow animation
         Animated.sequence([
           Animated.timing(glowAnim, {
             toValue: 1,
-            duration: 300,
+            duration: 400,
             useNativeDriver: false,
           }),
           Animated.timing(glowAnim, {
-            toValue: 0,
-            duration: 500,
+            toValue: 0.6,
+            duration: 300,
             useNativeDriver: false,
           }),
         ]).start();
-        
+
         saveTasbihSession({
           presetId: selectedPreset.id,
           count: newCount,
@@ -99,9 +145,11 @@ export default function TasbihScreen() {
       });
     }
     setCount(0);
-  }, [count, target, selectedPreset.id, saveTasbihSession]);
+    glowAnim.setValue(0);
+  }, [count, target, selectedPreset.id, saveTasbihSession, glowAnim]);
 
   const selectPreset = (preset: typeof tasbihPresets[0]) => {
+    Haptics.selectionAsync();
     if (count > 0) {
       saveTasbihSession({
         presetId: selectedPreset.id,
@@ -114,9 +162,10 @@ export default function TasbihScreen() {
     setSelectedPreset(preset);
     setCount(0);
     setShowPresets(false);
+    glowAnim.setValue(0);
   };
 
-  const circumference = 2 * Math.PI * (COUNTER_SIZE / 2 - 20);
+  const circumference = 2 * Math.PI * (COUNTER_SIZE / 2 - 24);
 
   const strokeDashoffset = progressAnim.interpolate({
     inputRange: [0, 1],
@@ -125,60 +174,91 @@ export default function TasbihScreen() {
 
   const glowOpacity = glowAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 0.4],
+    outputRange: [0, 0.5],
   });
+
+  const glowScale = glowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.08],
+  });
+
+  const isCompleted = count >= target;
 
   return (
     <View style={styles.container}>
       <LinearGradient
-        colors={[Colors.light.primaryDark, Colors.light.primary, Colors.light.cream]}
-        locations={[0, 0.35, 1]}
+        colors={['#022C22', '#047857', '#065F46', '#FAF8F3']}
+        locations={[0, 0.15, 0.35, 1]}
         style={StyleSheet.absoluteFill}
       />
-      
+
+      {/* Pattern overlay */}
+      <View style={styles.patternOverlay}>
+        <IslamicStar size={100} color="#FDE68A" opacity={0.04} />
+      </View>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 100 }]}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
+        {/* Header */}
+        <Animated.View
+          style={[
+            styles.header,
+            { opacity: headerOpacity, transform: [{ translateY: headerTranslate }] },
+          ]}
+        >
+          <CrescentStar size={28} color="#FDE68A" opacity={0.7} />
           <Text style={styles.headerTitle}>Tasbih</Text>
           <Text style={styles.headerArabic}>التسبيح</Text>
-          <Text style={styles.todayCount}>Today: {getTodayTasbihCount()} dhikr</Text>
-        </View>
+          <View style={styles.todayBadge}>
+            <Sparkles size={12} color={Colors.light.gold} />
+            <Text style={styles.todayCount}>{getTodayTasbihCount()} today</Text>
+          </View>
+        </Animated.View>
 
-        <TouchableOpacity 
-          style={styles.presetSelector}
+        {/* Preset Selector */}
+        <TouchableOpacity
+          style={[styles.presetSelector, shadows.md]}
           onPress={() => setShowPresets(!showPresets)}
-          activeOpacity={0.8}
+          activeOpacity={0.9}
         >
-          <View>
+          <View style={styles.presetInfo}>
             <Text style={styles.presetName}>{selectedPreset.name}</Text>
             <Text style={styles.presetArabic}>{selectedPreset.arabic || selectedPreset.nameArabic}</Text>
           </View>
-          {showPresets ? (
-            <ChevronUp size={24} color={Colors.light.primary} />
-          ) : (
-            <ChevronDown size={24} color={Colors.light.primary} />
-          )}
+          <View style={styles.presetMeta}>
+            <Text style={styles.presetTarget}>{selectedPreset.target}x</Text>
+            {showPresets ? (
+              <ChevronUp size={20} color={Colors.light.textMuted} />
+            ) : (
+              <ChevronDown size={20} color={Colors.light.textMuted} />
+            )}
+          </View>
         </TouchableOpacity>
 
+        {/* Preset List */}
         {showPresets && (
-          <View style={styles.presetList}>
-            {tasbihPresets.map(preset => (
+          <Animated.View style={[styles.presetList, shadows.lg]}>
+            {tasbihPresets.map((preset, index) => (
               <TouchableOpacity
                 key={preset.id}
                 style={[
                   styles.presetItem,
                   selectedPreset.id === preset.id && styles.presetItemSelected,
+                  index === tasbihPresets.length - 1 && styles.presetItemLast,
                 ]}
                 onPress={() => selectPreset(preset)}
+                activeOpacity={0.7}
               >
                 <View style={styles.presetItemLeft}>
-                  <Text style={[
-                    styles.presetItemName,
-                    selectedPreset.id === preset.id && styles.presetItemNameSelected,
-                  ]}>
+                  <Text
+                    style={[
+                      styles.presetItemName,
+                      selectedPreset.id === preset.id && styles.presetItemNameSelected,
+                    ]}
+                  >
                     {preset.name}
                   </Text>
                   <Text style={styles.presetItemArabic}>{preset.nameArabic}</Text>
@@ -186,53 +266,108 @@ export default function TasbihScreen() {
                 <View style={styles.presetItemRight}>
                   <Text style={styles.presetItemTarget}>{preset.target}x</Text>
                   {selectedPreset.id === preset.id && (
-                    <Check size={18} color={Colors.light.primary} />
+                    <View style={styles.checkCircle}>
+                      <Check size={12} color="#FFFFFF" strokeWidth={3} />
+                    </View>
                   )}
                 </View>
               </TouchableOpacity>
             ))}
-          </View>
+          </Animated.View>
         )}
 
-        <View style={styles.counterSection}>
-          <Animated.View style={[styles.glowRing, { opacity: glowOpacity }]} />
-          
+        {/* Counter Section */}
+        <Animated.View
+          style={[
+            styles.counterSection,
+            { opacity: counterOpacity, transform: [{ scale: counterScale }] },
+          ]}
+        >
+          {/* Glow ring for completion */}
+          <Animated.View
+            style={[
+              styles.glowRing,
+              {
+                opacity: glowOpacity,
+                transform: [{ scale: glowScale }],
+              },
+            ]}
+          />
+
           <TouchableOpacity
-            activeOpacity={0.9}
+            activeOpacity={1}
             onPress={handleCount}
             testID="tasbih-counter"
           >
-            <Animated.View style={[styles.counterContainer, { transform: [{ scale: scaleAnim }] }]}>
+            <Animated.View
+              style={[
+                styles.counterContainer,
+                shadows.xl,
+                { transform: [{ scale: Animated.multiply(scaleAnim, pulseAnim) }] },
+              ]}
+            >
               <Svg width={COUNTER_SIZE} height={COUNTER_SIZE} style={styles.progressRing}>
+                <Defs>
+                  <RadialGradient id="counterBg" cx="50%" cy="50%" r="50%">
+                    <Stop offset="0%" stopColor="#FFFFFF" stopOpacity={1} />
+                    <Stop offset="100%" stopColor="#FDFCF9" stopOpacity={1} />
+                  </RadialGradient>
+                </Defs>
+
+                {/* Background circle */}
                 <Circle
                   cx={COUNTER_SIZE / 2}
                   cy={COUNTER_SIZE / 2}
-                  r={COUNTER_SIZE / 2 - 20}
-                  stroke={Colors.light.border}
-                  strokeWidth={8}
-                  fill="transparent"
+                  r={COUNTER_SIZE / 2 - 24}
+                  fill="url(#counterBg)"
                 />
+
+                {/* Track circle */}
+                <Circle
+                  cx={COUNTER_SIZE / 2}
+                  cy={COUNTER_SIZE / 2}
+                  r={COUNTER_SIZE / 2 - 24}
+                  stroke={Colors.light.borderLight}
+                  strokeWidth={10}
+                  fill="none"
+                />
+
+                {/* Progress circle */}
                 <AnimatedCircle
                   cx={COUNTER_SIZE / 2}
                   cy={COUNTER_SIZE / 2}
-                  r={COUNTER_SIZE / 2 - 20}
-                  stroke={count >= target ? Colors.light.gold : Colors.light.primary}
-                  strokeWidth={8}
-                  fill="transparent"
+                  r={COUNTER_SIZE / 2 - 24}
+                  stroke={isCompleted ? Colors.light.gold : Colors.light.primary}
+                  strokeWidth={10}
+                  fill="none"
                   strokeLinecap="round"
                   strokeDasharray={circumference}
                   strokeDashoffset={strokeDashoffset}
                   rotation="-90"
                   origin={`${COUNTER_SIZE / 2}, ${COUNTER_SIZE / 2}`}
                 />
+
+                {/* Inner decorative ring */}
+                <Circle
+                  cx={COUNTER_SIZE / 2}
+                  cy={COUNTER_SIZE / 2}
+                  r={COUNTER_SIZE / 2 - 50}
+                  stroke={Colors.light.border}
+                  strokeWidth={1}
+                  strokeDasharray="4 4"
+                  fill="none"
+                  opacity={0.4}
+                />
               </Svg>
-              
+
               <View style={styles.counterInner}>
-                <Text style={styles.countText}>{count}</Text>
+                <Text style={[styles.countText, isCompleted && styles.countTextCompleted]}>
+                  {count}
+                </Text>
                 <Text style={styles.targetText}>of {target}</Text>
-                {count >= target && (
+                {isCompleted && (
                   <View style={styles.completedBadge}>
-                    <Check size={14} color={Colors.light.ivory} />
+                    <Check size={14} color="#FFFFFF" strokeWidth={3} />
                     <Text style={styles.completedText}>Complete</Text>
                   </View>
                 )}
@@ -241,24 +376,36 @@ export default function TasbihScreen() {
           </TouchableOpacity>
 
           <Text style={styles.tapHint}>Tap to count</Text>
+        </Animated.View>
+
+        {/* Dhikr Display */}
+        <View style={[styles.dhikrDisplay, shadows.lg]}>
+          <LinearGradient
+            colors={['#022C22', '#065F46']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.dhikrGradient}
+          >
+            <View style={styles.dhikrPattern}>
+              <IslamicStar size={60} color="#FDE68A" opacity={0.08} />
+            </View>
+            <Text style={styles.dhikrArabic}>
+              {selectedPreset.arabic || selectedPreset.nameArabic}
+            </Text>
+            {selectedPreset.id !== '6' && (
+              <Text style={styles.dhikrTranslation}>{selectedPreset.name}</Text>
+            )}
+          </LinearGradient>
         </View>
 
-        <View style={styles.dhikrDisplay}>
-          <Text style={styles.dhikrArabic}>
-            {selectedPreset.arabic || selectedPreset.nameArabic}
-          </Text>
-          {selectedPreset.id !== '6' && (
-            <Text style={styles.dhikrTranslation}>{selectedPreset.name}</Text>
-          )}
-        </View>
-
+        {/* Reset Button */}
         <TouchableOpacity
-          style={styles.resetButton}
+          style={[styles.resetButton, shadows.sm]}
           onPress={handleReset}
           activeOpacity={0.8}
           testID="reset-button"
         >
-          <RotateCcw size={20} color={Colors.light.primary} />
+          <RotateCcw size={18} color={Colors.light.primary} />
           <Text style={styles.resetText}>Reset Counter</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -271,7 +418,12 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.cream,
+    backgroundColor: Colors.light.background,
+  },
+  patternOverlay: {
+    position: 'absolute',
+    top: 50,
+    right: -30,
   },
   scrollView: {
     flex: 1,
@@ -285,34 +437,42 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors.light.ivory,
-    marginBottom: 4,
+    fontSize: 32,
+    fontWeight: '300',
+    color: '#FDFCF9',
+    marginTop: 8,
+    letterSpacing: -0.5,
   },
   headerArabic: {
     fontSize: 18,
     color: Colors.light.goldSoft,
-    marginBottom: 8,
+    marginBottom: 12,
+  },
+  todayBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
   todayCount: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.light.goldSoft,
-    opacity: 0.8,
+    fontWeight: '500',
   },
   presetSelector: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.light.ivory,
-    borderRadius: 16,
-    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
     width: '100%',
-    shadowColor: Colors.light.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
+  },
+  presetInfo: {
+    flex: 1,
   },
   presetName: {
     fontSize: 18,
@@ -324,28 +484,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.light.textMuted,
   },
+  presetMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  presetTarget: {
+    fontSize: 14,
+    color: Colors.light.gold,
+    fontWeight: '700',
+  },
   presetList: {
-    backgroundColor: Colors.light.ivory,
-    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     marginTop: 12,
     width: '100%',
     overflow: 'hidden',
-    shadowColor: Colors.light.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
   },
   presetItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 18,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
+    borderBottomColor: Colors.light.borderLight,
   },
   presetItemSelected: {
-    backgroundColor: Colors.light.primary + '10',
+    backgroundColor: Colors.light.goldMuted + '40',
+  },
+  presetItemLast: {
+    borderBottomWidth: 0,
   },
   presetItemLeft: {
     flex: 1,
@@ -357,7 +525,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   presetItemNameSelected: {
-    color: Colors.light.primary,
+    color: Colors.light.textGold,
     fontWeight: '600',
   },
   presetItemArabic: {
@@ -370,13 +538,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   presetItemTarget: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.light.textMuted,
     fontWeight: '500',
   },
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.light.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   counterSection: {
     alignItems: 'center',
-    marginVertical: 32,
+    marginVertical: 36,
   },
   glowRing: {
     position: 'absolute',
@@ -390,13 +566,7 @@ const styles = StyleSheet.create({
     height: COUNTER_SIZE,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.light.ivory,
     borderRadius: COUNTER_SIZE / 2,
-    shadowColor: Colors.light.primaryDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
   },
   progressRing: {
     position: 'absolute',
@@ -406,72 +576,84 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   countText: {
-    fontSize: 72,
+    fontSize: 80,
     fontWeight: '200',
     color: Colors.light.text,
+    letterSpacing: -3,
+  },
+  countTextCompleted: {
+    color: Colors.light.gold,
   },
   targetText: {
     fontSize: 16,
     color: Colors.light.textMuted,
     marginTop: -8,
+    fontWeight: '400',
   },
   completedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.light.success,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 16,
     gap: 6,
   },
   completedText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.light.ivory,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   tapHint: {
     fontSize: 14,
     color: Colors.light.textMuted,
-    marginTop: 16,
+    marginTop: 20,
+    fontWeight: '400',
   },
   dhikrDisplay: {
-    backgroundColor: Colors.light.primaryDark,
-    borderRadius: 20,
-    padding: 24,
     width: '100%',
-    alignItems: 'center',
+    borderRadius: 24,
+    overflow: 'hidden',
     marginBottom: 20,
   },
+  dhikrGradient: {
+    padding: 28,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  dhikrPattern: {
+    position: 'absolute',
+    top: -10,
+    right: -10,
+  },
   dhikrArabic: {
-    fontSize: 32,
-    color: Colors.light.ivory,
+    fontSize: 34,
+    color: '#FDFCF9',
     textAlign: 'center',
-    lineHeight: 48,
+    lineHeight: 52,
+    fontWeight: '400',
   },
   dhikrTranslation: {
     fontSize: 14,
     color: Colors.light.goldSoft,
-    marginTop: 8,
+    marginTop: 12,
     fontStyle: 'italic',
+    fontWeight: '400',
   },
   resetButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.light.ivory,
+    backgroundColor: '#FFFFFF',
     paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 16,
+    paddingHorizontal: 28,
+    borderRadius: 20,
     gap: 10,
-    shadowColor: Colors.light.primaryDark,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 2,
   },
   resetText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: Colors.light.primary,
   },

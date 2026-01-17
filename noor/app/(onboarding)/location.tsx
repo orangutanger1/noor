@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,34 +6,49 @@ import {
   Animated,
   TextInput,
   Alert,
-  Platform,
+  Dimensions,
+  TouchableOpacity,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MapPin, Shield, Check, Search } from 'lucide-react-native';
+import { MapPin, Search, ChevronRight } from 'lucide-react-native';
 import * as Location from 'expo-location';
 import Colors from '@/constants/colors';
-import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress';
 import { OnboardingButton } from '@/components/onboarding/OnboardingButton';
+import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress';
 import { useOnboarding } from '@/providers/OnboardingProvider';
+
+const { width, height } = Dimensions.get('window');
 
 export default function LocationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { setLocationData } = useOnboarding();
-  const [fadeAnim] = useState(new Animated.Value(0));
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+
   const [loading, setLoading] = useState(false);
   const [showManualInput, setShowManualInput] = useState(false);
   const [manualCity, setManualCity] = useState('');
   const [locationGranted, setLocationGranted] = useState(false);
+  const [detectedCity, setDetectedCity] = useState('');
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   const handleEnableLocation = async () => {
@@ -45,7 +60,6 @@ export default function LocationScreen() {
         const location = await Location.getCurrentPositionAsync({});
         const { latitude, longitude } = location.coords;
 
-        // Try to get city name from coordinates
         const [address] = await Location.reverseGeocodeAsync({ latitude, longitude });
         const cityName = address?.city || address?.subregion || 'Your Location';
 
@@ -56,47 +70,29 @@ export default function LocationScreen() {
           method: 'auto',
         });
 
+        setDetectedCity(cityName);
         setLocationGranted(true);
 
-        // Short delay to show success state
         setTimeout(() => {
           router.push('/(onboarding)/calculation');
-        }, 500);
+        }, 800);
       } else {
-        Alert.alert(
-          'Location Permission',
-          'Location permission was denied. You can set your location manually.',
-          [
-            { text: 'OK', onPress: () => setShowManualInput(true) }
-          ]
-        );
+        setShowManualInput(true);
       }
     } catch (error) {
       console.log('Location error:', error);
-      Alert.alert(
-        'Location Error',
-        'Unable to get your location. Please try setting it manually.',
-        [
-          { text: 'OK', onPress: () => setShowManualInput(true) }
-        ]
-      );
+      setShowManualInput(true);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleManualLocation = () => {
-    setShowManualInput(true);
-  };
-
   const handleManualSubmit = () => {
     if (manualCity.trim().length < 2) {
-      Alert.alert('Invalid City', 'Please enter a valid city name.');
+      Alert.alert('Enter a city', 'Please enter a valid city name.');
       return;
     }
 
-    // For manual entry, we'll use a default location
-    // In a real app, you'd geocode the city name
     setLocationData({
       latitude: 0,
       longitude: 0,
@@ -107,66 +103,73 @@ export default function LocationScreen() {
     router.push('/(onboarding)/calculation');
   };
 
-  const benefits = [
-    'Calculate accurate prayer times for your city',
-    'Point you toward the Qibla',
-    'Adjust for local sunrise and sunset',
-  ];
-
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={[Colors.light.primaryDark, Colors.light.primary, Colors.light.cream]}
-        locations={[0, 0.35, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      {/* Background Image */}
+      <View style={styles.imageWrapper}>
+        <Image
+          source={require('@/assets/images/onboarding/dunes.png')}
+          style={styles.backgroundImage}
+          contentFit="cover"
+          transition={400}
+          placeholder={{ blurhash: 'LGF5]+Yk^6#M@-5c,1J5@[or[Q6.' }}
+        />
+        <LinearGradient
+          colors={['rgba(15, 23, 42, 0.3)', 'rgba(15, 23, 42, 0.6)', 'rgba(15, 23, 42, 0.98)']}
+          locations={[0, 0.4, 0.75]}
+          style={styles.gradient}
+        />
+      </View>
 
-      <View style={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}>
-        {/* Illustration */}
-        <Animated.View style={[styles.illustrationContainer, { opacity: fadeAnim }]}>
-          <View style={styles.illustration}>
-            <View style={styles.mosqueShape}>
-              <View style={styles.dome} />
-              <View style={styles.minaret} />
-            </View>
-            <View style={styles.locationPin}>
-              <MapPin size={32} color={Colors.light.gold} fill={Colors.light.gold} />
-            </View>
+      {/* Content */}
+      <View style={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 24 }]}>
+        {/* Header */}
+        <Animated.View
+          style={[
+            styles.header,
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
+          ]}
+        >
+          <View style={styles.iconWrapper}>
+            <MapPin size={24} color="#ffffff" strokeWidth={1.5} />
           </View>
+          <Text style={styles.title}>Where are you?</Text>
+          <Text style={styles.subtitle}>
+            We'll use your location to show accurate prayer times
+          </Text>
         </Animated.View>
 
-        {/* Content */}
-        <Animated.View style={[styles.mainContent, { opacity: fadeAnim }]}>
-          <Text style={styles.title}>Enable Location Services</Text>
-          <Text style={styles.subtitle}>Noor uses your location to:</Text>
-
-          <View style={styles.benefitsList}>
-            {benefits.map((benefit, index) => (
-              <View key={index} style={styles.benefitItem}>
-                <Check size={18} color={Colors.light.success} />
-                <Text style={styles.benefitText}>{benefit}</Text>
+        {/* Main Content */}
+        <View style={styles.mainContent}>
+          {locationGranted ? (
+            <Animated.View
+              style={[
+                styles.successCard,
+                { opacity: fadeAnim },
+              ]}
+            >
+              <View style={styles.successIcon}>
+                <MapPin size={20} color="#10b981" strokeWidth={2} />
               </View>
-            ))}
-          </View>
-
-          {/* Privacy Notice */}
-          <View style={styles.privacyCard}>
-            <Shield size={20} color={Colors.light.primary} />
-            <Text style={styles.privacyText}>
-              Your location stays on your device. We never track or share your whereabouts.
-            </Text>
-          </View>
-
-          {/* Manual Input */}
-          {showManualInput && (
-            <View style={styles.manualInputContainer}>
-              <Text style={styles.manualLabel}>Enter your city:</Text>
+              <View>
+                <Text style={styles.successTitle}>Location found</Text>
+                <Text style={styles.successCity}>{detectedCity}</Text>
+              </View>
+            </Animated.View>
+          ) : showManualInput ? (
+            <Animated.View
+              style={[
+                styles.inputCard,
+                { opacity: fadeAnim },
+              ]}
+            >
+              <Text style={styles.inputLabel}>Enter your city</Text>
               <View style={styles.inputWrapper}>
-                <Search size={18} color={Colors.light.textMuted} />
+                <Search size={18} color="rgba(255,255,255,0.4)" />
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g., Chicago, London, Dubai"
-                  placeholderTextColor={Colors.light.textMuted}
+                  placeholder="e.g., London, Dubai, Chicago"
+                  placeholderTextColor="rgba(255,255,255,0.3)"
                   value={manualCity}
                   onChangeText={setManualCity}
                   autoFocus
@@ -174,40 +177,67 @@ export default function LocationScreen() {
                   onSubmitEditing={handleManualSubmit}
                 />
               </View>
-            </View>
-          )}
-        </Animated.View>
-
-        {/* Footer */}
-        <View style={styles.footer}>
-          {showManualInput ? (
-            <OnboardingButton
-              title="Continue"
-              onPress={handleManualSubmit}
-              disabled={manualCity.trim().length < 2}
-            />
-          ) : locationGranted ? (
-            <View style={styles.successContainer}>
-              <Check size={24} color={Colors.light.success} />
-              <Text style={styles.successText}>Location enabled!</Text>
-            </View>
+            </Animated.View>
           ) : (
+            <Animated.View style={{ opacity: fadeAnim }}>
+              {/* Feature List */}
+              <View style={styles.featureList}>
+                {[
+                  'Accurate prayer times',
+                  'Qibla direction',
+                  'Local sunrise & sunset',
+                ].map((feature, index) => (
+                  <View key={index} style={styles.featureItem}>
+                    <View style={styles.featureDot} />
+                    <Text style={styles.featureText}>{feature}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.privacyNote}>
+                <Text style={styles.privacyText}>
+                  Your location stays on your device
+                </Text>
+              </View>
+            </Animated.View>
+          )}
+        </View>
+
+        {/* Bottom Section */}
+        <Animated.View
+          style={[
+            styles.bottomSection,
+            { opacity: fadeAnim },
+          ]}
+        >
+          {!locationGranted && (
             <>
-              <OnboardingButton
-                title="Enable Location"
-                onPress={handleEnableLocation}
-                loading={loading}
-              />
-              <OnboardingButton
-                title="Set Location Manually"
-                onPress={handleManualLocation}
-                variant="text"
-                style={{ marginTop: 8 }}
-              />
+              {showManualInput ? (
+                <OnboardingButton
+                  title="Continue"
+                  onPress={handleManualSubmit}
+                  disabled={manualCity.trim().length < 2}
+                />
+              ) : (
+                <>
+                  <OnboardingButton
+                    title="Use My Location"
+                    onPress={handleEnableLocation}
+                    loading={loading}
+                  />
+                  <TouchableOpacity
+                    style={styles.skipButton}
+                    onPress={() => setShowManualInput(true)}
+                  >
+                    <Text style={styles.skipText}>Enter manually</Text>
+                    <ChevronRight size={16} color="rgba(255,255,255,0.5)" />
+                  </TouchableOpacity>
+                </>
+              )}
             </>
           )}
-          <OnboardingProgress currentStep={1} totalSteps={5} />
-        </View>
+          <OnboardingProgress currentStep={12} totalSteps={16} />
+        </Animated.View>
       </View>
     </View>
   );
@@ -216,147 +246,148 @@ export default function LocationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#0f172a',
+  },
+  imageWrapper: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backgroundImage: {
+    width: width,
+    height: height,
+  },
+  gradient: {
+    ...StyleSheet.absoluteFillObject,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
+    paddingHorizontal: 32,
   },
-  illustrationContainer: {
+  header: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 24,
+    marginBottom: 40,
   },
-  illustration: {
-    width: 120,
-    height: 120,
-    position: 'relative',
+  iconWrapper: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 24,
   },
-  mosqueShape: {
-    alignItems: 'center',
+  title: {
+    fontSize: 32,
+    fontWeight: '300',
+    color: '#ffffff',
+    letterSpacing: -0.5,
+    marginBottom: 12,
   },
-  dome: {
-    width: 60,
-    height: 35,
-    backgroundColor: Colors.light.ivory,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    opacity: 0.9,
-  },
-  minaret: {
-    width: 12,
-    height: 50,
-    backgroundColor: Colors.light.ivory,
-    marginTop: -5,
-    opacity: 0.9,
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
-  },
-  locationPin: {
-    position: 'absolute',
-    bottom: 10,
-    right: 20,
-    backgroundColor: Colors.light.ivory,
-    borderRadius: 20,
-    padding: 8,
-    shadowColor: Colors.light.primaryDark,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+  subtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.5)',
+    textAlign: 'center',
+    lineHeight: 24,
   },
   mainContent: {
     flex: 1,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors.light.ivory,
-    textAlign: 'center',
-    marginBottom: 8,
+  featureList: {
+    marginTop: 20,
   },
-  subtitle: {
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  featureDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginRight: 16,
+  },
+  featureText: {
     fontSize: 16,
-    color: Colors.light.goldSoft,
-    textAlign: 'center',
-    marginBottom: 24,
+    color: 'rgba(255, 255, 255, 0.7)',
   },
-  benefitsList: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-  },
-  benefitItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 14,
-  },
-  benefitText: {
-    fontSize: 15,
-    color: Colors.light.text,
-    marginLeft: 12,
-    flex: 1,
-    lineHeight: 22,
-  },
-  privacyCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: Colors.light.primary + '15',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.light.primary + '30',
+  privacyNote: {
+    marginTop: 24,
+    alignItems: 'center',
   },
   privacyText: {
     fontSize: 13,
-    color: Colors.light.text,
-    marginLeft: 12,
-    flex: 1,
-    lineHeight: 20,
+    color: 'rgba(255, 255, 255, 0.35)',
   },
-  manualInputContainer: {
+  inputCard: {
     marginTop: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 16,
-    padding: 20,
   },
-  manualLabel: {
+  inputLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: Colors.light.text,
+    color: 'rgba(255, 255, 255, 0.5)',
     marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.cream,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 12,
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: Colors.light.border,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   input: {
     flex: 1,
     fontSize: 16,
-    color: Colors.light.text,
-    paddingVertical: 14,
-    marginLeft: 10,
+    color: '#ffffff',
+    paddingVertical: 16,
+    marginLeft: 12,
   },
-  footer: {
-    marginTop: 'auto',
+  successCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.2)',
   },
-  successContainer: {
+  successIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  successTitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginBottom: 4,
+  },
+  successCity: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#ffffff',
+  },
+  bottomSection: {
+    paddingTop: 20,
+  },
+  skipButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
+    marginTop: 8,
   },
-  successText: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: Colors.light.success,
-    marginLeft: 8,
+  skipText: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.5)',
+    marginRight: 4,
   },
 });

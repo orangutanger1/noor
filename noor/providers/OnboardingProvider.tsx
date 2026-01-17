@@ -18,14 +18,52 @@ export interface NotificationSettings {
   reminderMinutes: number;
 }
 
+export type Gender = 'male' | 'female' | 'prefer_not_to_say';
+export type AgeRange = '13-17' | '18-24' | '25-34' | '35-44' | '45-54' | '55+';
+export type LifeStage = 'student' | 'early_career' | 'established_career' | 'parent' | 'retired' | 'other';
+export type IslamicExperience = 'new_to_islam' | 'growing' | 'practicing' | 'knowledgeable';
+export type CommitmentLevel = 'exploring' | 'building_habits' | 'consistent' | 'devoted';
+
+export type Motivation =
+  | 'prayer_times'
+  | 'quran_connection'
+  | 'build_habits'
+  | 'learn_more'
+  | 'community'
+  | 'spiritual_growth'
+  | 'ramadan_prep'
+  | 'new_muslim';
+
+export interface UserProfile {
+  name: string;
+  gender: Gender | null;
+  ageRange: AgeRange | null;
+  motivations: Motivation[];
+  lifeStage: LifeStage | null;
+  islamicExperience: IslamicExperience | null;
+  commitmentLevel: CommitmentLevel | null;
+}
+
 export interface OnboardingData {
+  userProfile: UserProfile;
   location: LocationData | null;
   calculationMethod: string;
   notifications: NotificationSettings;
   completedAt: string | null;
 }
 
+const defaultUserProfile: UserProfile = {
+  name: '',
+  gender: null,
+  ageRange: null,
+  motivations: [],
+  lifeStage: null,
+  islamicExperience: null,
+  commitmentLevel: null,
+};
+
 const defaultOnboardingData: OnboardingData = {
+  userProfile: defaultUserProfile,
   location: null,
   calculationMethod: 'isna',
   notifications: {
@@ -86,6 +124,16 @@ export const [OnboardingProvider, useOnboarding] = createContextHook(() => {
     }));
   }, []);
 
+  const updateUserProfile = useCallback((updates: Partial<UserProfile>) => {
+    setOnboardingData((prev) => ({
+      ...prev,
+      userProfile: {
+        ...prev.userProfile,
+        ...updates,
+      },
+    }));
+  }, []);
+
   const completeOnboarding = useCallback(async () => {
     try {
       const finalData = {
@@ -125,11 +173,13 @@ export const [OnboardingProvider, useOnboarding] = createContextHook(() => {
     isOnboardingComplete,
     isLoading,
     onboardingData,
+    userProfile: onboardingData.userProfile,
     locationData: onboardingData.location,
     calculationMethod: onboardingData.calculationMethod,
     notificationSettings: onboardingData.notifications,
 
     // Actions
+    updateUserProfile,
     setLocationData,
     setCalculationMethod,
     setNotificationSettings,
