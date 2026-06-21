@@ -2,12 +2,18 @@
   "expo": {
     "name": "Noor: Prayer Times & Quran",
     "slug": "noor-islamic-companion-",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./logo.png",
     "scheme": "noor-app",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "fingerprint"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/228d6060-5f92-4422-ba25-bcd5985a6193"
+    },
     "splash": {
       "image": "./assets/images/icon.png",
       "resizeMode": "contain",
