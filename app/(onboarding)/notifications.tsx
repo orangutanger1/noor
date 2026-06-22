@@ -245,14 +245,14 @@ export default function NotificationsScreen() {
         <View style={styles.spacer} />
         <View style={styles.footer}>
           <OnboardingButton
-            title="Maybe Later"
-            onPress={handleSkip}
-            variant="text"
-          />
-          <OnboardingButton
             title="Enable Notifications"
             onPress={handleEnableNotifications}
             loading={loading}
+          />
+          <OnboardingButton
+            title="Maybe Later"
+            onPress={handleSkip}
+            variant="text"
           />
           <OnboardingProgress currentStep={16} totalSteps={18} />
         </View>
