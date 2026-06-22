@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/colors';
 import { OnboardingButton } from '@/components/onboarding/OnboardingButton';
+import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress';
 import { useOnboarding } from '@/providers/OnboardingProvider';
 import { useResponsive } from '@/hooks/useResponsive';
 
@@ -140,6 +141,7 @@ export default function Quote2Screen() {
             title="Let's Set Up Noor"
             onPress={handleContinue}
           />
+          <OnboardingProgress currentStep={12} totalSteps={18} />
         </Animated.View>
         </View>
       </ScrollView>
