@@ -2,7 +2,7 @@
   "expo": {
     "name": "Noor: Prayer Times & Quran",
     "slug": "noor-islamic-companion-",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "orientation": "portrait",
     "icon": "./logo.png",
     "scheme": "noor-app",
