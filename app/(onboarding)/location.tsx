@@ -299,11 +299,6 @@ export default function LocationScreen() {
                 />
               ) : (
                 <>
-                  <OnboardingButton
-                    title="Continue"
-                    onPress={handleEnableLocation}
-                    loading={loading}
-                  />
                   <TouchableOpacity
                     style={styles.skipButton}
                     onPress={() => setShowManualInput(true)}
@@ -311,6 +306,11 @@ export default function LocationScreen() {
                     <Text style={styles.skipText}>Enter manually instead</Text>
                     <ChevronRight size={16} color="rgba(255,255,255,0.5)" />
                   </TouchableOpacity>
+                  <OnboardingButton
+                    title="Continue"
+                    onPress={handleEnableLocation}
+                    loading={loading}
+                  />
                 </>
               )}
             </>

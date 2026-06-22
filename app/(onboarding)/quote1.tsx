@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/colors';
 import { OnboardingButton } from '@/components/onboarding/OnboardingButton';
+import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress';
 import { useResponsive } from '@/hooks/useResponsive';
 
 const { width, height } = Dimensions.get('window');
@@ -154,6 +155,7 @@ export default function Quote1Screen() {
             title="Continue"
             onPress={handleContinue}
           />
+          <OnboardingProgress currentStep={9} totalSteps={18} />
         </Animated.View>
         </View>
       </ScrollView>
