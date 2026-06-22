@@ -38,7 +38,7 @@ export default function SurahScreen() {
     updateLastRead,
     addQuranHighlight,
     removeQuranHighlight,
-    getHighlightForAyah,
+    getHighlightsForAyah,
     lastReadPosition,
     isChapterBookmarked,
     toggleChapterBookmark,
@@ -48,6 +48,9 @@ export default function SurahScreen() {
   const flatListRef = useRef<FlatList>(null);
 
   const [selectedAyah, setSelectedAyah] = useState<QuranAyah | null>(null);
+  const [wordSelection, setWordSelection] = useState<
+    { field: 'arabic' | 'translation'; start: number; end: number } | null
+  >(null);
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [hasScrolledToLastRead, setHasScrolledToLastRead] = useState(false);
@@ -120,9 +123,20 @@ export default function SurahScreen() {
   }, [selectedAyah, surah, addQuranBookmark]);
 
   const handleHighlight = useCallback(() => {
+    setWordSelection(null); // context-menu highlight = whole verse
     setShowContextMenu(false);
     setShowColorPicker(true);
   }, []);
+
+  const handleSelectWords = useCallback(
+    (ayah: QuranAyah, field: 'arabic' | 'translation', start: number, end: number) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSelectedAyah(ayah);
+      setWordSelection({ field, start, end });
+      setShowColorPicker(true);
+    },
+    []
+  );
 
   const handleSelectHighlightColor = useCallback(
     (color: HighlightColor) => {
@@ -136,17 +150,22 @@ export default function SurahScreen() {
         ayahText: selectedAyah.arabic,
         translation: selectedAyah.translation,
         color,
+        ...(wordSelection
+          ? { field: wordSelection.field, startWord: wordSelection.start, endWord: wordSelection.end }
+          : {}),
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setWordSelection(null);
       setSelectedAyah(null);
     },
-    [selectedAyah, surah, addQuranHighlight]
+    [selectedAyah, surah, addQuranHighlight, wordSelection]
   );
 
   const handleRemoveHighlight = useCallback(() => {
     if (!selectedAyah || !surah) return;
     removeQuranHighlight(surah.number, selectedAyah.number);
+    setWordSelection(null);
     setSelectedAyah(null);
   }, [selectedAyah, surah, removeQuranHighlight]);
 
@@ -185,17 +204,18 @@ export default function SurahScreen() {
 
   const renderAyah = useCallback(
     ({ item }: { item: QuranAyah }) => {
-      const highlight = getHighlightForAyah(surahNumber, item.number);
+      const highlights = getHighlightsForAyah(surahNumber, item.number);
       return (
         <AyahItem
           ayah={item}
           surahNumber={surahNumber}
-          highlightColor={highlight?.color}
+          highlights={highlights}
           onLongPress={handleAyahLongPress}
+          onSelectWords={handleSelectWords}
         />
       );
     },
-    [surahNumber, getHighlightForAyah, handleAyahLongPress]
+    [surahNumber, getHighlightsForAyah, handleAyahLongPress, handleSelectWords]
   );
 
   const getItemLayout = useCallback(
@@ -364,13 +384,12 @@ export default function SurahScreen() {
         visible={showColorPicker}
         onClose={() => {
           setShowColorPicker(false);
+          setWordSelection(null);
           setSelectedAyah(null);
         }}
         onSelectColor={handleSelectHighlightColor}
         onRemoveHighlight={handleRemoveHighlight}
-        currentColor={
-          selectedAyah ? getHighlightForAyah(surahNumber, selectedAyah.number)?.color : undefined
-        }
+        currentColor={undefined}
       />
     </>
   );

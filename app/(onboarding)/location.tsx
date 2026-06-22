@@ -37,6 +37,51 @@ export default function LocationScreen() {
   const [manualCity, setManualCity] = useState('');
   const [locationGranted, setLocationGranted] = useState(false);
   const [detectedCity, setDetectedCity] = useState('');
+  const [suggestions, setSuggestions] = useState<{ label: string; lat: number; lon: number }[]>([]);
+  const pickedCoords = useRef<{ lat: number; lon: number } | null>(null);
+  const justPicked = useRef(false);
+
+  // Debounced city autocomplete via OpenStreetMap Nominatim (free, no key).
+  // ponytail: Nominatim ~1 req/s fair-use; swap to Google Places if it rate-limits in production.
+  useEffect(() => {
+    const q = manualCity.trim();
+    if (justPicked.current) {
+      justPicked.current = false;
+      return;
+    }
+    if (q.length < 2) {
+      setSuggestions([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&featuretype=city&q=${encodeURIComponent(q)}`,
+          { headers: { 'User-Agent': 'NoorApp/1.1 (prayer-times)' } }
+        );
+        const data = await res.json();
+        const items = (Array.isArray(data) ? data : []).map((d: any) => {
+          const a = d.address || {};
+          const city = a.city || a.town || a.village || a.county || d.name;
+          const label = [city, a.country].filter(Boolean).join(', ') || d.display_name;
+          return { label, lat: parseFloat(d.lat), lon: parseFloat(d.lon) };
+        }).filter((x: any) => x.label && !isNaN(x.lat));
+        // Dedupe by label.
+        const seen = new Set<string>();
+        setSuggestions(items.filter((x: any) => !seen.has(x.label) && seen.add(x.label)));
+      } catch {
+        setSuggestions([]);
+      }
+    }, 350);
+    return () => clearTimeout(t);
+  }, [manualCity]);
+
+  const handlePickSuggestion = (s: { label: string; lat: number; lon: number }) => {
+    justPicked.current = true;
+    pickedCoords.current = { lat: s.lat, lon: s.lon };
+    setManualCity(s.label);
+    setSuggestions([]);
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -88,16 +133,28 @@ export default function LocationScreen() {
     }
   };
 
-  const handleManualSubmit = () => {
-    if (manualCity.trim().length < 2) {
+  const handleManualSubmit = async () => {
+    const city = manualCity.trim();
+    if (city.length < 2) {
       Alert.alert('Enter a city', 'Please enter a valid city name.');
       return;
     }
 
+    let coords = pickedCoords.current;
+    // No suggestion picked — resolve typed text to coordinates so prayer times are accurate.
+    if (!coords) {
+      try {
+        const [geo] = await Location.geocodeAsync(city);
+        if (geo) coords = { lat: geo.latitude, lon: geo.longitude };
+      } catch {
+        // fall through with null coords
+      }
+    }
+
     setLocationData({
-      latitude: 0,
-      longitude: 0,
-      cityName: manualCity.trim(),
+      latitude: coords?.lat ?? 0,
+      longitude: coords?.lon ?? 0,
+      cityName: city,
       method: 'manual',
     });
 
@@ -186,6 +243,21 @@ export default function LocationScreen() {
                   onSubmitEditing={handleManualSubmit}
                 />
               </View>
+              {suggestions.length > 0 && (
+                <View style={styles.suggestions}>
+                  {suggestions.map((s, i) => (
+                    <TouchableOpacity
+                      key={s.label}
+                      style={[styles.suggestionItem, i > 0 && styles.suggestionDivider]}
+                      onPress={() => handlePickSuggestion(s)}
+                      activeOpacity={0.7}
+                    >
+                      <MapPin size={16} color="rgba(255,255,255,0.4)" />
+                      <Text style={styles.suggestionText} numberOfLines={1}>{s.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
             </Animated.View>
           ) : (
             <Animated.View style={{ opacity: fadeAnim }}>
@@ -360,6 +432,30 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     paddingVertical: 16,
     marginLeft: 12,
+  },
+  suggestions: {
+    marginTop: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  suggestionDivider: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  suggestionText: {
+    flex: 1,
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.85)',
   },
   successCard: {
     flexDirection: 'row',

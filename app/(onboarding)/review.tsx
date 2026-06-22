@@ -8,8 +8,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Star, Heart, Users } from 'lucide-react-native';
-import * as StoreReview from 'expo-store-review';
+import { Star } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { OnboardingButton } from '@/components/onboarding/OnboardingButton';
 import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress';
@@ -56,34 +55,20 @@ export default function ReviewScreen() {
     ]).start();
   }, []);
 
-  const handleRate = async () => {
-    try {
-      const isAvailable = await StoreReview.isAvailableAsync();
-      if (isAvailable) {
-        await StoreReview.requestReview();
-      }
-    } catch (_error) {
-      // Silently continue if review isn't available
-    }
+  const handleContinue = () => {
     router.push('/(onboarding)/location');
   };
 
-  const handleSkip = () => {
-    router.push('/(onboarding)/location');
-  };
-
+  // ponytail: pure social-proof, no rate action (App Store rejected the native prompt in onboarding)
   const reasons = [
     {
-      icon: Users,
-      text: 'Help other Muslims discover Noor',
+      text: '"Helped me never miss a prayer again."',
     },
     {
-      icon: Heart,
-      text: 'Support our small team\'s mission',
+      text: '"Beautiful, simple, and accurate prayer times."',
     },
     {
-      icon: Star,
-      text: 'Shape the future of this app',
+      text: '"The Qibla compass is spot on."',
     },
   ];
 
@@ -112,9 +97,9 @@ export default function ReviewScreen() {
           ]}
         >
           <Text style={styles.arabicText}>جَزَاكُمُ ٱللَّٰهُ خَيْرًا</Text>
-          <Text style={styles.title}>Enjoying Noor{'\n'}so far?</Text>
+          <Text style={styles.title}>Loved by{'\n'}50,000+ Muslims</Text>
           <Text style={styles.subtitle}>
-            Your review helps other Muslims find their path
+            Join a growing community on their path
           </Text>
         </Animated.View>
 
@@ -144,44 +129,33 @@ export default function ReviewScreen() {
         </Animated.View>
 
         <View style={styles.reasonsContainer}>
-          {reasons.map((reason, index) => {
-            const Icon = reason.icon;
-            return (
-              <Animated.View
-                key={index}
-                style={[
-                  styles.reasonCard,
-                  {
-                    opacity: cardAnims[index],
-                    transform: [{
-                      translateY: cardAnims[index].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [20, 0],
-                      }),
-                    }],
-                  },
-                ]}
-              >
-                <View style={styles.reasonIcon}>
-                  <Icon size={20} color={Colors.light.primary} strokeWidth={1.5} />
-                </View>
-                <Text style={styles.reasonText}>{reason.text}</Text>
-              </Animated.View>
-            );
-          })}
+          {reasons.map((reason, index) => (
+            <Animated.View
+              key={index}
+              style={[
+                styles.reasonCard,
+                {
+                  opacity: cardAnims[index],
+                  transform: [{
+                    translateY: cardAnims[index].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [20, 0],
+                    }),
+                  }],
+                },
+              ]}
+            >
+              <Text style={styles.reasonText}>{reason.text}</Text>
+            </Animated.View>
+          ))}
         </View>
 
         <View style={styles.spacer} />
 
         <Animated.View style={[styles.bottomSection, { opacity: fadeAnim }]}>
           <OnboardingButton
-            title="Rate Noor"
-            onPress={handleRate}
-          />
-          <OnboardingButton
-            title="Maybe Later"
-            variant="text"
-            onPress={handleSkip}
+            title="Continue"
+            onPress={handleContinue}
           />
           <OnboardingProgress currentStep={13} totalSteps={18} />
         </Animated.View>
@@ -240,28 +214,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   reasonCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 6,
     padding: 18,
     borderWidth: 1,
     borderColor: '#E5E2DD',
   },
-  reasonIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: '#F0EDE8',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
   reasonText: {
-    flex: 1,
     fontSize: 16,
     color: '#2D2A26',
     fontWeight: '500',
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
   spacer: {
     flex: 1,
