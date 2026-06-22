@@ -334,7 +334,7 @@ export default function QuranScreen() {
                     </View>
                     {readingHistory.map(entry => (
                       <TouchableOpacity
-                        key={entry.id}
+                        key={`${entry.surahNumber}-${entry.ayahNumber}`}
                         style={[styles.bookmarkItem, { backgroundColor: colors.surface }]}
                         onPress={() => handleBookmarkPress({ ...entry, id: entry.id, type: 'verse', surahNumber: entry.surahNumber, surahName: entry.surahName, surahNameArabic: entry.surahNameArabic, ayahNumber: entry.ayahNumber, createdAt: entry.timestamp })}
                         activeOpacity={0.7}

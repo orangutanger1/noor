@@ -40,6 +40,10 @@ export interface QuranHighlight {
   translation: string;
   color: HighlightColor;
   createdAt: string;
+  // Word-range highlights. Absent => legacy whole-verse highlight.
+  field?: 'arabic' | 'translation';
+  startWord?: number;
+  endWord?: number;
 }
 
 export type HighlightColor = 'yellow' | 'green' | 'blue' | 'pink' | 'orange';

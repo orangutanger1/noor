@@ -303,7 +303,8 @@ export const [AppProvider, useApp] = createContextHook(() => {
     // Update reading history
     const historyEntry: ReadingHistoryEntry = {
       ...newPosition,
-      id: Date.now().toString(),
+      // Unique per verse — entries are deduped by surah/ayah, and Date.now() collided on same-ms updates.
+      id: `${position.surahNumber}-${position.ayahNumber}`,
     };
 
     setReadingHistory(prev => {
@@ -326,9 +327,15 @@ export const [AppProvider, useApp] = createContextHook(() => {
       createdAt: new Date().toISOString(),
     };
     setQuranHighlights(prev => {
-      // Remove existing highlight for the same ayah if any
+      // Replace an existing highlight covering the exact same span; keep other spans.
       const filtered = prev.filter(
-        h => !(h.surahNumber === highlight.surahNumber && h.ayahNumber === highlight.ayahNumber)
+        h => !(
+          h.surahNumber === highlight.surahNumber &&
+          h.ayahNumber === highlight.ayahNumber &&
+          h.field === highlight.field &&
+          h.startWord === highlight.startWord &&
+          h.endWord === highlight.endWord
+        )
       );
       const updated = [newHighlight, ...filtered];
       AsyncStorage.setItem(HIGHLIGHTS_KEY, JSON.stringify(updated));
@@ -346,8 +353,22 @@ export const [AppProvider, useApp] = createContextHook(() => {
     });
   }, []);
 
+  const removeQuranHighlightById = useCallback(async (id: string) => {
+    setQuranHighlights(prev => {
+      const updated = prev.filter(h => h.id !== id);
+      AsyncStorage.setItem(HIGHLIGHTS_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const getHighlightForAyah = useCallback((surahNumber: number, ayahNumber: number): QuranHighlight | undefined => {
     return quranHighlights.find(
+      h => h.surahNumber === surahNumber && h.ayahNumber === ayahNumber
+    );
+  }, [quranHighlights]);
+
+  const getHighlightsForAyah = useCallback((surahNumber: number, ayahNumber: number): QuranHighlight[] => {
+    return quranHighlights.filter(
       h => h.surahNumber === surahNumber && h.ayahNumber === ayahNumber
     );
   }, [quranHighlights]);
@@ -416,7 +437,9 @@ export const [AppProvider, useApp] = createContextHook(() => {
     clearReadingHistory,
     addQuranHighlight,
     removeQuranHighlight,
+    removeQuranHighlightById,
     getHighlightForAyah,
+    getHighlightsForAyah,
     deleteAllData,
   };
 });
