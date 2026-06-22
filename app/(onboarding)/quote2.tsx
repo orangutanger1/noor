@@ -47,7 +47,8 @@ export default function Quote2Screen() {
   }, []);
 
   const handleContinue = () => {
-    router.push('/(onboarding)/review' as any);
+    // ponytail: review/social-proof screen skipped; re-add by routing to '/(onboarding)/review'
+    router.push('/(onboarding)/location' as any);
   };
 
   return (
